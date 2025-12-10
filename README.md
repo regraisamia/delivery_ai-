@@ -114,7 +114,7 @@ frontend/
    ```bash
    python main.py
    ```
-   Server runs on: http://localhost:8000
+   Server runs on: http://localhost:8001
 
 ### Frontend Setup
 
@@ -130,7 +130,12 @@ frontend/
    ```
    Frontend runs on: http://localhost:5173
 
-## 🔐 Authentication
+## 🌐 Application URLs
+
+- **Frontend**: http://localhost:5173
+- **Backend API**: http://localhost:8001
+- **API Documentation**: http://localhost:8001/docs
+- **Test API**: http://localhost:8001/api/test
 
 ### Test Credentials
 
@@ -141,6 +146,10 @@ frontend/
 **Driver Login:**
 - Email: `driver@example.com`
 - Password: `driver123`
+
+**Admin Login:**
+- Username: `admin`
+- Password: `admin123`
 
 ### API Authentication
 All protected endpoints require JWT tokens:
@@ -154,22 +163,40 @@ Authorization: Bearer <jwt_token>
 - `POST /api/auth/login` - User login
 - `POST /api/auth/register` - User registration
 - `POST /api/driver/login` - Driver login
+- `POST /api/admin/login` - Admin login
 
 ### Orders
 - `POST /api/orders` - Create delivery order
 - `GET /api/orders` - List user orders
 - `GET /api/orders/{id}` - Get order details
 - `PUT /api/orders/{id}/status` - Update order status
+- `GET /api/orders/tracking/{tracking_number}` - Track by tracking number
 
 ### Inter-City Operations
 - `POST /api/inter-city/orders` - Create inter-city order
-- `POST /api/inter-city/orders/{id}/monitor` - Monitor delivery
-- `GET /api/inter-city/pricing/{origin}/{destination}` - Get pricing
-- `GET /api/inter-city/routes/{origin}/{destination}` - Get route info
+- `GET /api/inter-city/track/{tracking_number}` - Track inter-city order
+- `POST /api/inter-city/warehouse-dropoff/{order_id}` - Warehouse dropoff
+- `POST /api/inter-city/process-warehouse/{order_id}` - Process warehouse package
 
-### Tracking
+### Driver Operations
+- `GET /api/driver/{driver_id}/dashboard` - Driver dashboard
+- `POST /api/driver/{driver_id}/location` - Update driver location
+- `POST /api/driver/assignment/response` - Accept/reject assignment
+- `POST /api/driver/delivery/start/{order_id}` - Start delivery
+- `POST /api/driver/delivery/complete` - Complete delivery
+
+### Admin Operations
+- `GET /api/admin/orders` - Get all orders
+- `GET /api/admin/drivers` - Get all drivers
+- `GET /api/admin/analytics` - Get system analytics
+
+### Tracking & Utilities
 - `GET /api/tracking/{order_id}` - Track order
-- `WebSocket /ws/tracking` - Real-time updates
+- `GET /api/cities` - Get supported cities
+- `GET /api/warehouses` - Get warehouse info
+- `GET /api/weather/{city}` - Get weather data
+- `WebSocket /ws/tracking/{order_id}` - Real-time order updates
+- `WebSocket /ws/driver/{driver_id}` - Real-time driver updates
 
 ## 🤖 AI Agent Workflows
 
@@ -239,7 +266,7 @@ class Order(Document):
 
 4. **Production Server:**
    ```bash
-   uvicorn main:app --host 0.0.0.0 --port 8000
+   uvicorn main:app --host 0.0.0.0 --port 8001
    ```
 
 ## 🧪 Testing
@@ -254,9 +281,19 @@ python test_connection.py  # Test MongoDB connection
 Use tools like Postman or curl:
 ```bash
 # Login test
-curl -X POST http://localhost:8000/api/auth/login \
+curl -X POST http://localhost:8001/api/auth/login \
   -H "Content-Type: application/json" \
   -d '{"username":"testuser","password":"test123"}'
+
+# Driver login test
+curl -X POST http://localhost:8001/api/driver/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"driver@example.com","password":"driver123"}'
+
+# Admin login test
+curl -X POST http://localhost:8001/api/admin/login \
+  -H "Content-Type: application/json" \
+  -d '{"username":"admin","password":"admin123"}'
 ```
 
 ## 📊 Monitoring & Analytics
@@ -301,6 +338,39 @@ For issues and questions:
 - Check the troubleshooting section
 - Review API documentation
 - Create an issue on GitHub
+
+## ✨ Current Features
+
+### Customer Interface
+- Order creation (intra-city & inter-city)
+- Real-time order tracking
+- Order history and management
+- Pricing calculator
+- Multi-city support
+
+### Driver Interface
+- Assignment acceptance/rejection
+- GPS location updates
+- Route optimization
+- Delivery completion
+- Earnings tracking
+- Real-time notifications
+
+### Admin Interface
+- System analytics dashboard
+- Driver management
+- Order monitoring
+- Performance metrics
+- Live tracking overview
+
+### System Features
+- Real-time GPS tracking
+- Weather-aware routing
+- Warehouse management
+- Multi-channel notifications
+- Dynamic route optimization
+- WebSocket real-time updates
+- Mobile-responsive design
 
 ## 🚀 Future Enhancements
 

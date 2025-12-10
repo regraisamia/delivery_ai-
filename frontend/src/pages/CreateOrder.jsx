@@ -9,17 +9,33 @@ export default function CreateOrder() {
   const navigate = useNavigate()
   const [formData, setFormData] = useState({
     sender_name: '',
+    sender_phone: '',
     sender_address: '',
     sender_lat: null,
     sender_lng: null,
+    pickup_city: 'Casablanca',
     receiver_name: '',
+    receiver_phone: '',
     receiver_address: '',
     receiver_lat: null,
     receiver_lng: null,
+    delivery_city: 'Casablanca',
     weight: '',
     dimensions: { length: '', width: '', height: '' },
-    service_type: 'standard'
+    service_type: 'standard',
+    delivery_type: 'intra_city',
+    pickup_option: 'door_pickup',
+    delivery_option: 'door_delivery',
+    package_description: '',
+    fragile: false,
+    insurance_value: 0
   })
+  
+  const [cities] = useState([
+    'Casablanca', 'Rabat', 'Marrakech', 'El Jadida', 'Salé', 'Agadir'
+  ])
+  
+  const [isInterCity, setIsInterCity] = useState(false)
   const [showSenderMap, setShowSenderMap] = useState(false)
   const [showReceiverMap, setShowReceiverMap] = useState(false)
 
@@ -39,28 +55,59 @@ export default function CreateOrder() {
     }
   }, [])
 
-  const createMutation = useMutation(api.createOrder, {
-    onSuccess: (response) => {
-      alert(`Order created! Tracking: ${response.data.tracking_number}`)
-      navigate('/dashboard')
+  const createMutation = useMutation(
+    isInterCity ? api.createInterCityOrder : api.createOrder,
+    {
+      onSuccess: (response) => {
+        alert(`Order created! Tracking: ${response.data.tracking_number}`)
+        navigate('/dashboard')
+      }
     }
-  })
+  )
+  
+  // Check if inter-city when cities change
+  const checkInterCity = () => {
+    const isIntercity = formData.pickup_city !== formData.delivery_city
+    setIsInterCity(isIntercity)
+    setFormData(prev => ({ ...prev, delivery_type: isIntercity ? 'inter_city' : 'intra_city' }))
+  }
+  
+  useEffect(() => {
+    checkInterCity()
+  }, [formData.pickup_city, formData.delivery_city])
 
   const handleSubmit = (e) => {
     e.preventDefault()
-    if (!formData.sender_lat || !formData.receiver_lat) {
-      alert('Please select locations on the map for both sender and receiver')
-      return
-    }
-    createMutation.mutate({
-      ...formData,
+    
+    const orderData = {
+      pickup_address: formData.sender_address,
+      delivery_address: formData.receiver_address,
+      pickup_city: formData.pickup_city,
+      delivery_city: formData.delivery_city,
+      sender_name: formData.sender_name,
+      sender_phone: formData.sender_phone,
+      receiver_name: formData.receiver_name,
+      receiver_phone: formData.receiver_phone,
       weight: parseFloat(formData.weight),
       dimensions: {
         length: parseFloat(formData.dimensions.length),
         width: parseFloat(formData.dimensions.width),
         height: parseFloat(formData.dimensions.height)
-      }
-    })
+      },
+      service_type: formData.service_type,
+      package_description: formData.package_description
+    }
+    
+    if (isInterCity) {
+      orderData.pickup_option = formData.pickup_option
+      orderData.delivery_option = formData.delivery_option
+      orderData.fragile = formData.fragile
+      orderData.insurance_value = parseFloat(formData.insurance_value) || 0
+    } else {
+      orderData.delivery_type = 'door_to_door'
+    }
+    
+    createMutation.mutate(orderData)
   }
 
   const handleChange = (e) => {
@@ -102,6 +149,25 @@ export default function CreateOrder() {
                 className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-4 focus:ring-blue-100 focus:outline-none transition-all"
                 required
               />
+              <input
+                name="sender_phone"
+                placeholder="Phone Number"
+                value={formData.sender_phone}
+                onChange={handleChange}
+                className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-4 focus:ring-blue-100 focus:outline-none transition-all"
+                required
+              />
+              <select
+                name="pickup_city"
+                value={formData.pickup_city}
+                onChange={handleChange}
+                className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-4 focus:ring-blue-100 focus:outline-none transition-all"
+                required
+              >
+                {cities.map(city => (
+                  <option key={city} value={city}>{city}</option>
+                ))}
+              </select>
               <div>
                 <input
                   name="sender_address"
@@ -149,6 +215,25 @@ export default function CreateOrder() {
                 className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-green-500 focus:ring-4 focus:ring-green-100 focus:outline-none transition-all"
                 required
               />
+              <input
+                name="receiver_phone"
+                placeholder="Phone Number"
+                value={formData.receiver_phone}
+                onChange={handleChange}
+                className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-green-500 focus:ring-4 focus:ring-green-100 focus:outline-none transition-all"
+                required
+              />
+              <select
+                name="delivery_city"
+                value={formData.delivery_city}
+                onChange={handleChange}
+                className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-green-500 focus:ring-4 focus:ring-green-100 focus:outline-none transition-all"
+                required
+              >
+                {cities.map(city => (
+                  <option key={city} value={city}>{city}</option>
+                ))}
+              </select>
               <div>
                 <input
                   name="receiver_address"
@@ -239,8 +324,81 @@ export default function CreateOrder() {
                 required
               />
             </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Package Description</label>
+              <input
+                name="package_description"
+                placeholder="Electronics, Documents, etc."
+                value={formData.package_description}
+                onChange={handleChange}
+                className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-purple-500 focus:ring-4 focus:ring-purple-100 focus:outline-none transition-all"
+                required
+              />
+            </div>
           </div>
         </div>
+
+        {/* Delivery Type Indicator */}
+        {isInterCity && (
+          <div className="bg-gradient-to-r from-orange-50 to-red-50 border-2 border-orange-200 rounded-2xl p-6">
+            <div className="flex items-center gap-2 mb-4">
+              <div className="w-3 h-3 bg-orange-500 rounded-full animate-pulse"></div>
+              <h3 className="font-bold text-lg text-orange-800">Inter-City Delivery</h3>
+            </div>
+            <p className="text-orange-700 mb-4">Your package will be delivered between {formData.pickup_city} and {formData.delivery_city}</p>
+            
+            <div className="grid md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-orange-700 mb-2">Pickup Option</label>
+                <select
+                  name="pickup_option"
+                  value={formData.pickup_option}
+                  onChange={handleChange}
+                  className="w-full px-4 py-3 border-2 border-orange-200 rounded-xl focus:border-orange-500 focus:outline-none"
+                >
+                  <option value="door_pickup">Door Pickup (+0 MAD)</option>
+                  <option value="warehouse_dropoff">Drop at Warehouse (-15 MAD)</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-orange-700 mb-2">Delivery Option</label>
+                <select
+                  name="delivery_option"
+                  value={formData.delivery_option}
+                  onChange={handleChange}
+                  className="w-full px-4 py-3 border-2 border-orange-200 rounded-xl focus:border-orange-500 focus:outline-none"
+                >
+                  <option value="door_delivery">Door Delivery (+0 MAD)</option>
+                  <option value="warehouse_pickup">Pickup from Warehouse (-15 MAD)</option>
+                </select>
+              </div>
+            </div>
+            
+            <div className="grid md:grid-cols-2 gap-4 mt-4">
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  name="fragile"
+                  checked={formData.fragile}
+                  onChange={(e) => setFormData(prev => ({ ...prev, fragile: e.target.checked }))}
+                  className="w-4 h-4 text-orange-600 border-2 border-orange-300 rounded focus:ring-orange-500"
+                />
+                <label className="text-sm font-medium text-orange-700">Fragile Package (+25 MAD)</label>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-orange-700 mb-1">Insurance Value (MAD)</label>
+                <input
+                  name="insurance_value"
+                  type="number"
+                  placeholder="0"
+                  value={formData.insurance_value}
+                  onChange={handleChange}
+                  className="w-full px-3 py-2 border-2 border-orange-200 rounded-xl focus:border-orange-500 focus:outline-none"
+                />
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Service Type */}
         <div className="bg-white rounded-2xl shadow-lg p-6 border border-gray-100">
@@ -248,8 +406,8 @@ export default function CreateOrder() {
             <Zap className="w-5 h-5 text-orange-600" />
             <h3 className="font-bold text-lg">Service Type</h3>
           </div>
-          <div className="grid grid-cols-3 gap-4">
-            {['standard', 'express', 'overnight'].map((type) => (
+          <div className="grid grid-cols-2 gap-4">
+            {['standard', 'express'].map((type) => (
               <label
                 key={type}
                 className={`relative flex items-center justify-center p-4 border-2 rounded-xl cursor-pointer transition-all ${
@@ -272,12 +430,48 @@ export default function CreateOrder() {
           </div>
         </div>
 
+        <div className="bg-gray-50 rounded-2xl p-6 border border-gray-200">
+          <h3 className="font-bold text-lg mb-2">Order Summary</h3>
+          <div className="space-y-2 text-sm">
+            <div className="flex justify-between">
+              <span>Delivery Type:</span>
+              <span className={`font-semibold ${isInterCity ? 'text-orange-600' : 'text-green-600'}`}>
+                {isInterCity ? 'Inter-City' : 'Intra-City'}
+              </span>
+            </div>
+            <div className="flex justify-between">
+              <span>Route:</span>
+              <span className="font-semibold">{formData.pickup_city} → {formData.delivery_city}</span>
+            </div>
+            <div className="flex justify-between">
+              <span>Service:</span>
+              <span className="font-semibold capitalize">{formData.service_type}</span>
+            </div>
+            {isInterCity && (
+              <>
+                <div className="flex justify-between">
+                  <span>Pickup:</span>
+                  <span className="font-semibold">{formData.pickup_option === 'door_pickup' ? 'Door Pickup' : 'Warehouse Drop-off'}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Delivery:</span>
+                  <span className="font-semibold">{formData.delivery_option === 'door_delivery' ? 'Door Delivery' : 'Warehouse Pickup'}</span>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+
         <button
           type="submit"
           disabled={createMutation.isLoading}
-          className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white py-4 rounded-xl hover:from-blue-700 hover:to-indigo-700 font-bold text-lg shadow-xl transform hover:scale-105 transition-all duration-300 disabled:opacity-50"
+          className={`w-full py-4 rounded-xl font-bold text-lg shadow-xl transform hover:scale-105 transition-all duration-300 disabled:opacity-50 ${
+            isInterCity 
+              ? 'bg-gradient-to-r from-orange-600 to-red-600 text-white hover:from-orange-700 hover:to-red-700'
+              : 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white hover:from-blue-700 hover:to-indigo-700'
+          }`}
         >
-          {createMutation.isLoading ? 'Creating Order...' : 'Create Order'}
+          {createMutation.isLoading ? 'Creating Order...' : `Create ${isInterCity ? 'Inter-City' : 'Local'} Order`}
         </button>
       </form>
     </div>

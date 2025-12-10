@@ -2,8 +2,8 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../services/api';
 
-const DriverLogin = () => {
-  const [credentials, setCredentials] = useState({ email: '', password: '' });
+const AdminLogin = () => {
+  const [credentials, setCredentials] = useState({ username: '', password: '' });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const navigate = useNavigate();
@@ -14,13 +14,12 @@ const DriverLogin = () => {
     setError('');
 
     try {
-      const response = await api.driverLogin(credentials);
-      localStorage.setItem('driver_token', response.data.access_token);
-      localStorage.setItem('driver_user', JSON.stringify(response.data.driver));
-      localStorage.setItem('driver_id', response.data.driver.id);
-      navigate('/driver/dashboard');
+      const response = await api.adminLogin(credentials);
+      localStorage.setItem('admin_token', response.data.access_token);
+      localStorage.setItem('admin_user', JSON.stringify(response.data.admin));
+      navigate('/admin/dashboard');
     } catch (error) {
-      setError('Invalid driver credentials');
+      setError('Invalid admin credentials');
     } finally {
       setLoading(false);
     }
@@ -31,22 +30,22 @@ const DriverLogin = () => {
       <div className="max-w-md w-full space-y-8">
         <div>
           <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
-            Driver Login
+            Admin Login
           </h2>
           <p className="mt-2 text-center text-sm text-gray-600">
-            Access your driver dashboard
+            Access the delivery system admin panel
           </p>
         </div>
         <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
           <div className="rounded-md shadow-sm -space-y-px">
             <div>
               <input
-                type="email"
+                type="text"
                 required
                 className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-t-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                placeholder="Email address"
-                value={credentials.email}
-                onChange={(e) => setCredentials({...credentials, email: e.target.value})}
+                placeholder="Username"
+                value={credentials.username}
+                onChange={(e) => setCredentials({...credentials, username: e.target.value})}
               />
             </div>
             <div>
@@ -69,7 +68,7 @@ const DriverLogin = () => {
             <button
               type="submit"
               disabled={loading}
-              className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 disabled:opacity-50"
+              className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
             >
               {loading ? 'Signing in...' : 'Sign in'}
             </button>
@@ -77,7 +76,7 @@ const DriverLogin = () => {
 
           <div className="text-center">
             <p className="text-sm text-gray-600">
-              Test credentials: driver@example.com / driver123
+              Test credentials: admin / admin123
             </p>
           </div>
         </form>
@@ -86,4 +85,4 @@ const DriverLogin = () => {
   );
 };
 
-export default DriverLogin;
+export default AdminLogin;

@@ -11,6 +11,9 @@ import TrackOrder from './pages/TrackOrder'
 import AgentMonitor from './pages/AgentMonitor'
 import DriverDashboard from './pages/DriverDashboard'
 import DriverLogin from './pages/DriverLogin'
+import AdminLogin from './pages/AdminLogin'
+import AdminDashboard from './pages/AdminDashboard'
+// Enhanced components will be loaded dynamically
 
 const queryClient = new QueryClient()
 
@@ -24,8 +27,13 @@ function DriverProtectedRoute({ children }) {
   return token ? children : <Navigate to="/driver/login" />
 }
 
+function AdminProtectedRoute({ children }) {
+  const token = localStorage.getItem('admin_token')
+  return token ? children : <Navigate to="/admin/login" />
+}
+
 function App() {
-  const isAuthenticated = !!localStorage.getItem('token') || !!localStorage.getItem('driver_token')
+  const isAuthenticated = !!localStorage.getItem('token') || !!localStorage.getItem('driver_token') || !!localStorage.getItem('admin_token')
 
   return (
     <QueryClientProvider client={queryClient}>
@@ -46,6 +54,10 @@ function App() {
                 <Route path="/agents" element={<ProtectedRoute><AgentMonitor /></ProtectedRoute>} />
                 <Route path="/driver/login" element={<DriverLogin />} />
                 <Route path="/driver/dashboard" element={<DriverProtectedRoute><DriverDashboard /></DriverProtectedRoute>} />
+                <Route path="/admin/login" element={<AdminLogin />} />
+                <Route path="/admin/dashboard" element={<AdminProtectedRoute><AdminDashboard /></AdminProtectedRoute>} />
+                <Route path="/admin/super" element={<AdminProtectedRoute><AdminDashboard /></AdminProtectedRoute>} />
+                <Route path="/driver/enhanced" element={<DriverProtectedRoute><DriverDashboard /></DriverProtectedRoute>} />
               </Routes>
             </div>
           </main>
