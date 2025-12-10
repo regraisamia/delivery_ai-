@@ -63,6 +63,28 @@ def login(request: LoginRequest):
         }
     return {"detail": "Invalid credentials"}
 
+class DriverLoginRequest(BaseModel):
+    email: str
+    password: str
+
+@app.post("/api/driver/login")
+def driver_login(request: DriverLoginRequest):
+    if request.email == "driver@example.com" and request.password == "driver123":
+        return {
+            "access_token": "driver-token-123",
+            "token_type": "bearer",
+            "driver": {
+                "id": "1",
+                "email": "driver@example.com",
+                "name": "Test Driver",
+                "phone": "+1234567890",
+                "vehicle_type": "bike",
+                "status": "available",
+                "rating": 4.5
+            }
+        }
+    return {"detail": "Invalid credentials"}
+
 @app.get("/api/orders")
 def get_orders():
     from datetime import datetime
