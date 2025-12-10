@@ -2,7 +2,25 @@ import sys
 import os
 sys.path.append(os.path.join(os.path.dirname(__file__), '../../..'))
 
-from crewai import Crew, Task, Agent, LLM
+try:
+    from crewai import Crew, Task, Agent
+    from crewai.llm import LLM
+except ImportError:
+    # Fallback if CrewAI is not available
+    class Agent:
+        def __init__(self, **kwargs):
+            pass
+    class Task:
+        def __init__(self, **kwargs):
+            pass
+    class Crew:
+        def __init__(self, **kwargs):
+            pass
+        def kickoff(self):
+            return "AI service unavailable"
+    class LLM:
+        def __init__(self, **kwargs):
+            pass
 
 class AgentService:
     @staticmethod

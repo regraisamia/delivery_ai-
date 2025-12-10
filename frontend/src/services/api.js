@@ -1,6 +1,6 @@
 import axios from 'axios'
 
-const API_BASE = '/api'
+const API_BASE = 'http://localhost:8000/api'
 
 axios.interceptors.request.use((config) => {
   const token = localStorage.getItem('token')
@@ -17,8 +17,11 @@ export const api = {
   getMe: () => axios.get(`${API_BASE}/auth/me`),
   
   // Orders
-  createOrder: (data) => axios.post(`${API_BASE}/orders/`, data),
-  getOrders: () => axios.get(`${API_BASE}/orders/`),
+  createOrder: (data) => axios.post(`${API_BASE}/orders`, data),
+  getOrders: () => {
+    console.log('Fetching orders from:', `${API_BASE}/orders`)
+    return axios.get(`${API_BASE}/orders`)
+  },
   getOrder: (id) => axios.get(`${API_BASE}/orders/${id}`),
   trackOrder: (trackingNumber) => axios.get(`${API_BASE}/orders/tracking/${trackingNumber}`),
   getTrackingEvents: (orderId) => axios.get(`${API_BASE}/tracking/${orderId}`),

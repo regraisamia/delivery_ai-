@@ -4,7 +4,19 @@ import { Package, TrendingUp, Clock, CheckCircle, Loader } from 'lucide-react'
 import { Link } from 'react-router-dom'
 
 export default function Dashboard() {
-  const { data: orders, isLoading } = useQuery('orders', () => api.getOrders().then(res => res.data))
+  const { data: orders, isLoading, error } = useQuery('orders', 
+    () => api.getOrders().then(res => {
+      console.log('Orders response:', res.data)
+      return res.data
+    }),
+    {
+      onError: (error) => {
+        console.error('Orders fetch error:', error)
+      }
+    }
+  )
+  
+  console.log('Dashboard render - orders:', orders, 'loading:', isLoading, 'error:', error)
 
   const stats = [
     { label: 'Total Orders', value: orders?.length || 0, icon: Package, color: 'from-blue-500 to-indigo-500' },
