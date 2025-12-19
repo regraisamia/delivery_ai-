@@ -3,6 +3,7 @@ import { useQuery } from 'react-query'
 import { api } from '../services/api'
 import { MapPin, Search, Package, Map, Clock, Navigation, Cloud } from 'lucide-react'
 import RouteMap from '../components/RouteMap'
+import PackageTracker from '../components/PackageTracker'
 
 export default function TrackOrder() {
   const [trackingNumber, setTrackingNumber] = useState('')
@@ -103,6 +104,13 @@ export default function TrackOrder() {
       )}
 
       {order && (
+        <PackageTracker 
+          trackingNumber={trackingNumber}
+          orderId={order.id}
+        />
+      )}
+
+      {order && false && (
         <div className="space-y-6 animate-fade-in">
           {/* Delivery Type Badge */}
           <div className="mb-4">

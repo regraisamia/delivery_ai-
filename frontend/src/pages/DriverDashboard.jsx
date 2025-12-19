@@ -1,5 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { api } from '../services/api';
+import LiveGPSTracker from '../components/LiveGPSTracker';
+import OptimizedRouteDisplay from '../components/OptimizedRouteDisplay';
+import MultiPackageManager from '../components/MultiPackageManager';
 
 const DriverDashboard = () => {
   const [driver, setDriver] = useState(null);
@@ -97,6 +100,24 @@ const DriverDashboard = () => {
         (error) => console.error('GPS Error:', error),
         { enableHighAccuracy: true, maximumAge: 10000, timeout: 5000 }
       );
+    }
+  };
+
+  const updateDriverStatus = async (newStatus) => {
+    const driverId = localStorage.getItem('driver_id') || 'DRV001';
+    try {
+      await fetch('http://localhost:8001/api/driver/status/update', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          driver_id: driverId,
+          status: newStatus,
+          location: currentLocation
+        })
+      });
+      setDriver(prev => ({ ...prev, status: newStatus }));
+    } catch (error) {
+      console.error('Error updating status:', error);
     }
   };
 
@@ -355,15 +376,26 @@ const DriverDashboard = () => {
           </div>
         )}
 
-        {/* Optimized Route */}
+        {/* Multi-Package Manager */}
+        <div className="bg-white rounded-lg shadow mb-6">
+          <div className="p-6 border-b border-gray-200">
+            <h2 className="text-lg font-semibold text-gray-900">📦 Multi-Package Optimization</h2>
+            <p className="text-sm text-gray-600">Manage multiple deliveries with cost and time optimization</p>
+          </div>
+          <div className="p-6">
+            <MultiPackageManager driverId={driver.id} />
+          </div>
+        </div>
+
+        {/* Real-Time Optimized Route */}
         {orders.length > 0 && (
           <div className="bg-white rounded-lg shadow mb-6">
             <div className="p-6 border-b border-gray-200">
-              <h2 className="text-lg font-semibold text-gray-900">📍 Optimized Route</h2>
-              <p className="text-sm text-gray-600">Follow this route for maximum efficiency</p>
+              <h2 className="text-lg font-semibold text-gray-900">📍 Real-Time Optimized Route</h2>
+              <p className="text-sm text-gray-600">Live route with weather and traffic conditions</p>
             </div>
             <div className="p-6">
-              <RouteDisplay driverId={driver.id} orders={orders} />
+              <OptimizedRouteDisplay driverId={driver.id} orders={orders} />
             </div>
           </div>
         )}
@@ -461,32 +493,47 @@ const DriverDashboard = () => {
           </div>
         </div>
 
-        {/* Current Location */}
-        {currentLocation && (
-          <div className="bg-white rounded-lg shadow p-6 mt-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">📍 Current Location</h3>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div>
-                <p className="text-sm text-gray-600">Latitude</p>
-                <p className="text-sm font-medium">{currentLocation.latitude.toFixed(6)}</p>
-              </div>
-              <div>
-                <p className="text-sm text-gray-600">Longitude</p>
-                <p className="text-sm font-medium">{currentLocation.longitude.toFixed(6)}</p>
-              </div>
-              <div>
-                <p className="text-sm text-gray-600">Accuracy</p>
-                <p className="text-sm font-medium">{currentLocation.accuracy?.toFixed(0) || 'N/A'} m</p>
-              </div>
-            </div>
-            <button
-              onClick={() => window.open(`https://maps.google.com/maps?q=${currentLocation.latitude},${currentLocation.longitude}`, '_blank')}
-              className="mt-4 bg-blue-500 text-white px-4 py-2 rounded-lg text-sm hover:bg-blue-600"
-            >
-              🗺️ View on Map
-            </button>
+        {/* Driver Status Control */}
+        <div className="bg-white rounded-lg shadow p-6 mt-6">
+          <h3 className="text-lg font-semibold text-gray-900 mb-4">Driver Status</h3>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            {['available', 'busy', 'break', 'offline'].map((status) => (
+              <button
+                key={status}
+                onClick={() => updateDriverStatus(status)}
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  driver.status === status
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+              >
+                {status.charAt(0).toUpperCase() + status.slice(1)}
+              </button>
+            ))}
           </div>
-        )}
+        </div>
+
+        {/* Live GPS Tracker */}
+        <div className="mt-6">
+          <LiveGPSTracker 
+            orderId={orders.find(o => o.status === 'in_transit')?.id}
+            pickupCoords={orders.find(o => o.status === 'accepted') ? 
+              { lat: 33.5731, lng: -7.5898 } : null}
+            deliveryCoords={orders.find(o => o.status === 'in_transit') ? 
+              { lat: 33.5750, lng: -7.5900 } : null}
+            onLocationUpdate={(location) => {
+              setCurrentLocation({
+                latitude: location.lat,
+                longitude: location.lng,
+                accuracy: location.accuracy
+              });
+              updateGPSLocation({
+                latitude: location.lat,
+                longitude: location.lng
+              });
+            }}
+          />
+        </div>
         
         {/* Emergency Modal */}
         {showEmergency && (

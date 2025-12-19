@@ -5,6 +5,9 @@ import uvicorn
 import json
 import asyncio
 from datetime import datetime, timedelta
+from api.routes.gps_routes import router as gps_router
+from api.routes.driver_management import router as driver_router
+from api.services.smart_assignment import SmartAssignmentService
 
 app = FastAPI(title="Enhanced Multi-Agent Delivery System")
 
@@ -15,6 +18,22 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Include GPS routes
+app.include_router(gps_router, prefix="/api", tags=["GPS Tracking"])
+app.include_router(driver_router, prefix="/api", tags=["Driver Management"])
+
+# Include routing
+from api.routes.routing import router as routing_router
+app.include_router(routing_router, prefix="/api", tags=["Routing"])
+
+# Include batch assignment
+from api.routes.batch_assignment import router as batch_router
+app.include_router(batch_router, prefix="/api", tags=["Batch Assignment"])
+
+# Debug routes
+from api.routes.assignment_debug import router as debug_router
+app.include_router(debug_router, prefix="/api", tags=["Debug"])
 
 class LoginRequest(BaseModel):
     username: str
@@ -99,12 +118,17 @@ def root():
             "Weather-aware routing", 
             "Warehouse management",
             "Multi-channel notifications",
-            "Dynamic route optimization"
+            "Dynamic route optimization",
+            "Multi-package batch assignment",
+            "TSP-optimized routing",
+            "Cost and time reduction"
         ],
         "endpoints": [
             "POST /api/auth/login",
             "POST /api/orders",
             "POST /api/inter-city/orders",
+            "POST /api/batch/assign-multiple",
+            "POST /api/batch/create-optimized-batch",
             "GET /api/orders",
             "GET /api/cities",
             "GET /docs"
@@ -413,8 +437,8 @@ drivers_db = [
         "vehicle_type": "bike",
         "vehicle_capacity": 20.0,
         "current_location": {"lat": 33.5731, "lng": -7.5898, "city": "Casablanca"},
-        "status": "busy",
-        "current_orders": ["ORD1001", "ORD1002"],
+        "status": "available",
+        "current_orders": [],
         "rating": 4.8,
         "total_deliveries": 156
     },
@@ -439,8 +463,8 @@ drivers_db = [
         "vehicle_type": "scooter",
         "vehicle_capacity": 30.0,
         "current_location": {"lat": 31.6295, "lng": -7.9811, "city": "Marrakech"},
-        "status": "busy",
-        "current_orders": ["ORD1003"],
+        "status": "available",
+        "current_orders": [],
         "rating": 4.7,
         "total_deliveries": 89
     },
@@ -478,8 +502,8 @@ drivers_db = [
         "vehicle_type": "car",
         "vehicle_capacity": 80.0,
         "current_location": {"lat": 34.0531, "lng": -6.7985, "city": "Salé"},
-        "status": "busy",
-        "current_orders": ["ORD1004"],
+        "status": "available",
+        "current_orders": [],
         "rating": 4.8,
         "total_deliveries": 145
     }
@@ -499,7 +523,7 @@ def get_orders():
     return orders_db
 
 @app.post("/api/orders")
-def create_order(order: OrderCreate):
+async def create_order(order: OrderCreate):
     import random
     from datetime import datetime, timedelta
     
@@ -559,18 +583,38 @@ def create_order(order: OrderCreate):
         "is_inter_city": is_inter_city,
         "assigned_driver": None,
         "current_location": None,
-        "route_history": []
+        "route_history": [],
+        "assignment_attempts": 0
     }
     
     orders_db.append(new_order)
     
-    # Auto-assign driver if intra-city
-    if not is_inter_city:
-        assigned_driver = assign_best_driver(new_order)
-        if assigned_driver:
-            new_order["assigned_driver"] = assigned_driver["id"]
+    # Smart driver assignment with fallback
+    assignment_service = SmartAssignmentService()
+    
+    # Get available drivers in the pickup city
+    available_drivers = [d for d in drivers_db if 
+                        d.get("status") in ["available", "online"] and 
+                        d.get("current_location", {}).get("city", order.pickup_city).lower() == order.pickup_city.lower()]
+    
+    # If no drivers in same city, get any available driver
+    if not available_drivers:
+        available_drivers = [d for d in drivers_db if d.get("status") in ["available", "online"]]
+    
+    best_driver = await assignment_service.find_best_driver(new_order, available_drivers)
+    
+    if best_driver:
+        new_order["assigned_driver"] = best_driver["id"]
+        new_order["status"] = "pending_acceptance"
+        new_order["assignment_attempts"] = 1
+    else:
+        # Force assign to any available driver as fallback
+        fallback_driver = next((d for d in drivers_db if d.get("status") in ["available", "online"]), None)
+        if fallback_driver:
+            new_order["assigned_driver"] = fallback_driver["id"]
             new_order["status"] = "assigned"
-            assigned_driver["current_orders"].append(order_id)
+            fallback_driver["current_orders"].append(order_id)
+            fallback_driver["status"] = "busy"
     
     return new_order
 
@@ -835,8 +879,8 @@ def calculate_driver_assignment_score(driver: dict, order: dict, pickup_coords: 
 
 def get_max_orders_for_vehicle(vehicle_type: str) -> int:
     """Get maximum orders per vehicle type"""
-    limits = {"bike": 3, "scooter": 4, "car": 6, "van": 8}
-    return limits.get(vehicle_type, 3)
+    limits = {"bike": 6, "scooter": 8, "car": 12, "van": 16}
+    return limits.get(vehicle_type, 6)
 
 def get_vehicle_suitability_score(vehicle_type: str, order: dict) -> float:
     """Score vehicle suitability for order"""
@@ -983,11 +1027,37 @@ def track_order(order_id: str):
     if order["assigned_driver"]:
         driver_info = next((d for d in drivers_db if d["id"] == order["assigned_driver"]), None)
     
+    # Get coordinates
+    pickup_coords = get_city_coordinates(order["pickup_city"])
+    delivery_coords = get_city_coordinates(order["delivery_city"])
+    
+    # Get current package location
+    current_package_location = get_current_package_location(order, pickup_coords, delivery_coords)
+    
+    # Build tracking events
+    tracking_events = build_tracking_events(order, driver_info)
+    
+    # Warehouse info for inter-city orders
+    warehouse_info = None
+    if order.get("is_inter_city"):
+        warehouse_info = {
+            "origin_warehouse": warehouses_db.get(order["pickup_city"]),
+            "destination_warehouse": warehouses_db.get(order["delivery_city"]),
+            "current_warehouse": order.get("current_warehouse"),
+            "processing_status": order.get("warehouse_status", "not_processed")
+        }
+    
     return {
         "order": order,
         "driver": driver_info,
         "tracking_history": order.get("route_history", []),
-        "estimated_arrival": order.get("estimated_delivery")
+        "estimated_arrival": order.get("estimated_delivery"),
+        "pickup_coordinates": pickup_coords,
+        "delivery_coordinates": delivery_coords,
+        "current_package_location": current_package_location,
+        "warehouse_info": warehouse_info,
+        "tracking_events": tracking_events,
+        "progress_percentage": calculate_delivery_progress(order["status"])
     }
 
 @app.get("/api/orders/tracking/{tracking_number}")
@@ -1008,71 +1078,21 @@ def track_order_by_tracking_number(tracking_number: str):
         delivery_coords["lat"], delivery_coords["lng"]
     )
     
-    # Estimate duration based on distance and service type
-    base_duration = distance * 60 / 50  # 50 km/h average speed
-    if order.get("service_type") == "express":
-        base_duration *= 0.8  # 20% faster for express
-    
-    # Weather simulation
-    weather_conditions = ["Sunny", "Cloudy", "Light Rain", "Clear"]
-    import random
-    current_weather = random.choice(weather_conditions)
+    # Get current package location based on status
+    current_package_location = get_current_package_location(order, pickup_coords, delivery_coords)
     
     # Enhanced tracking history with timestamps
-    tracking_events = [
-        {
-            "timestamp": order["created_at"],
-            "status": "Order Created",
-            "location": order["pickup_address"],
-            "description": f"Order {order.get('tracking_number', order['id'])} has been created"
+    tracking_events = build_tracking_events(order, driver_info)
+    
+    # Warehouse info for inter-city orders
+    warehouse_info = None
+    if order.get("is_inter_city"):
+        warehouse_info = {
+            "origin_warehouse": warehouses_db.get(order["pickup_city"]),
+            "destination_warehouse": warehouses_db.get(order["delivery_city"]),
+            "current_warehouse": order.get("current_warehouse"),
+            "processing_status": order.get("warehouse_status", "not_processed")
         }
-    ]
-    
-    if order.get("assigned_driver"):
-        tracking_events.append({
-            "timestamp": order.get("accepted_at", order["created_at"]),
-            "status": "Driver Assigned",
-            "location": order["pickup_city"],
-            "description": f"Driver {driver_info['name'] if driver_info else 'Unknown'} has been assigned"
-        })
-    
-    if order["status"] in ["picked_up", "in_transit", "delivered"]:
-        tracking_events.append({
-            "timestamp": order.get("picked_up_at", order["created_at"]),
-            "status": "Package Picked Up",
-            "location": order["pickup_address"],
-            "description": "Package has been picked up from sender"
-        })
-    
-    if order["status"] in ["in_transit", "delivered"]:
-        tracking_events.append({
-            "timestamp": order.get("started_at", order["created_at"]),
-            "status": "In Transit",
-            "location": "En route",
-            "description": "Package is on the way to destination"
-        })
-    
-    if order["status"] == "delivered":
-        tracking_events.append({
-            "timestamp": order.get("delivered_at", order["created_at"]),
-            "status": "Delivered",
-            "location": order["delivery_address"],
-            "description": "Package has been successfully delivered"
-        })
-    
-    # Route coordinates for map display
-    route_coordinates = [
-        {"lat": pickup_coords["lat"], "lng": pickup_coords["lng"], "type": "pickup"},
-        {"lat": delivery_coords["lat"], "lng": delivery_coords["lng"], "type": "delivery"}
-    ]
-    
-    # Add current location if available
-    if order.get("current_location"):
-        route_coordinates.insert(1, {
-            "lat": order["current_location"]["lat"],
-            "lng": order["current_location"]["lng"],
-            "type": "current"
-        })
     
     return {
         "order": order,
@@ -1080,14 +1100,11 @@ def track_order_by_tracking_number(tracking_number: str):
         "tracking_history": order.get("route_history", []),
         "estimated_arrival": order.get("estimated_delivery"),
         "distance": round(distance, 1),
-        "estimated_duration": round(base_duration),
-        "weather": current_weather,
         "tracking_events": tracking_events,
-        "route_coordinates": route_coordinates,
         "pickup_coordinates": pickup_coords,
         "delivery_coordinates": delivery_coords,
-        "map_available": True,
-        "delivery_type": "inter_city" if order.get("is_inter_city") else "intra_city",
+        "current_package_location": current_package_location,
+        "warehouse_info": warehouse_info,
         "progress_percentage": calculate_delivery_progress(order["status"]),
         "next_update": get_next_expected_update(order)
     }
@@ -1649,7 +1666,9 @@ def complete_delivery(driver_id: str, completion_data: dict):
     return {"message": "Delivery completed successfully", "order": order}
 
 def generate_advanced_route(driver_id: str) -> dict:
-    """Generate advanced optimized route with GPS coordinates and turn-by-turn directions"""
+    """Generate optimized multi-package route using TSP algorithm"""
+    from api.services.multi_package_optimizer import MultiPackageOptimizer
+    
     driver = next((d for d in drivers_db if d["id"] == driver_id), None)
     if not driver:
         return {"route_points": [], "total_distance": 0, "estimated_time": 0}
@@ -1660,112 +1679,63 @@ def generate_advanced_route(driver_id: str) -> dict:
     if not driver_orders:
         return {"route_points": [], "total_distance": 0, "estimated_time": 0}
     
-    # Create optimized route using advanced algorithms
+    # Use optimized multi-package routing
+    optimizer = MultiPackageOptimizer()
+    route_data = optimizer.optimize_multi_delivery_route(
+        driver["current_location"], 
+        driver_orders
+    )
+    
+    # Convert to expected format
     route_points = []
-    current_location = driver["current_location"]
-    
-    # Add driver's current location
-    route_points.append({
-        "type": "start",
-        "location": {"lat": current_location["lat"], "lng": current_location["lng"]},
-        "address": "Current Location",
-        "order_id": None,
-        "estimated_arrival": datetime.now().isoformat(),
-        "instructions": "Starting point"
-    })
-    
-    # Separate pickups and deliveries
-    pickups = [o for o in driver_orders if o["status"] in ["accepted", "assigned"]]
-    deliveries = [o for o in driver_orders if o["status"] in ["picked_up", "in_transit"]]
-    
-    # Optimize pickup sequence first (nearest neighbor)
-    current_pos = {"lat": current_location["lat"], "lng": current_location["lng"]}
-    total_distance = 0
     total_time = 0
     
-    # Process pickups first
-    remaining_pickups = pickups.copy()
-    while remaining_pickups:
-        nearest_pickup = min(remaining_pickups, key=lambda o: calculate_gps_distance(
-            current_pos["lat"], current_pos["lng"],
-            get_address_coordinates(o["pickup_address"], o["pickup_city"])["lat"],
-            get_address_coordinates(o["pickup_address"], o["pickup_city"])["lng"]
-        ))
-        
-        pickup_coords = get_address_coordinates(nearest_pickup["pickup_address"], nearest_pickup["pickup_city"])
-        distance = calculate_gps_distance(
-            current_pos["lat"], current_pos["lng"],
-            pickup_coords["lat"], pickup_coords["lng"]
-        )
-        
-        total_distance += distance
-        total_time += distance * 2 + 15  # 2 min/km + 15 min pickup time
-        
-        route_points.append({
-            "type": "pickup",
-            "location": pickup_coords,
-            "address": nearest_pickup["pickup_address"],
-            "order_id": nearest_pickup["id"],
-            "tracking_number": nearest_pickup.get("tracking_number", nearest_pickup["id"]),
-            "contact_name": nearest_pickup.get("sender_name", "Sender"),
-            "contact_phone": nearest_pickup.get("sender_phone", "+212661234567"),
-            "package_description": nearest_pickup.get("package_description", "Package"),
-            "priority": 1 if nearest_pickup.get("service_type") == "express" else 2,
-            "estimated_arrival": (datetime.now() + timedelta(minutes=total_time)).isoformat(),
-            "distance_from_previous": round(distance, 2),
-            "instructions": f"Pick up package from {nearest_pickup.get('sender_name', 'sender')}",
-            "estimated_duration": 15
-        })
-        
-        current_pos = pickup_coords
-        remaining_pickups.remove(nearest_pickup)
-    
-    # Process deliveries
-    remaining_deliveries = deliveries.copy()
-    while remaining_deliveries:
-        nearest_delivery = min(remaining_deliveries, key=lambda o: calculate_gps_distance(
-            current_pos["lat"], current_pos["lng"],
-            get_address_coordinates(o["delivery_address"], o["delivery_city"])["lat"],
-            get_address_coordinates(o["delivery_address"], o["delivery_city"])["lng"]
-        ))
-        
-        delivery_coords = get_address_coordinates(nearest_delivery["delivery_address"], nearest_delivery["delivery_city"])
-        distance = calculate_gps_distance(
-            current_pos["lat"], current_pos["lng"],
-            delivery_coords["lat"], delivery_coords["lng"]
-        )
-        
-        total_distance += distance
-        total_time += distance * 2 + 10  # 2 min/km + 10 min delivery time
-        
-        route_points.append({
-            "type": "delivery",
-            "location": delivery_coords,
-            "address": nearest_delivery["delivery_address"],
-            "order_id": nearest_delivery["id"],
-            "tracking_number": nearest_delivery.get("tracking_number", nearest_delivery["id"]),
-            "contact_name": nearest_delivery.get("receiver_name", "Receiver"),
-            "contact_phone": nearest_delivery.get("receiver_phone", "+212667654321"),
-            "package_description": nearest_delivery.get("package_description", "Package"),
-            "priority": 1 if nearest_delivery.get("service_type") == "express" else 2,
-            "estimated_arrival": (datetime.now() + timedelta(minutes=total_time)).isoformat(),
-            "distance_from_previous": round(distance, 2),
-            "instructions": f"Deliver package to {nearest_delivery.get('receiver_name', 'receiver')}",
-            "estimated_duration": 10
-        })
-        
-        current_pos = delivery_coords
-        remaining_deliveries.remove(nearest_delivery)
+    for i, point in enumerate(route_data["route"]):
+        if point["type"] == "start":
+            route_points.append({
+                "type": "start",
+                "location": point["location"],
+                "address": "Current Location",
+                "order_id": None,
+                "estimated_arrival": datetime.now().isoformat(),
+                "instructions": "Starting point"
+            })
+        else:
+            order = point["order"]
+            is_pickup = point["type"] == "pickup"
+            
+            # Calculate time to this point
+            if i > 0:
+                prev_point = route_data["route"][i-1]
+                distance = optimizer._calculate_distance(prev_point["location"], point["location"])
+                total_time += distance * 2 + (5 if is_pickup else 8)  # Travel + stop time
+            
+            route_points.append({
+                "type": point["type"],
+                "location": point["location"],
+                "address": order["pickup_address"] if is_pickup else order["delivery_address"],
+                "order_id": order["id"],
+                "tracking_number": order.get("tracking_number", order["id"]),
+                "contact_name": order.get("sender_name" if is_pickup else "receiver_name", "Contact"),
+                "contact_phone": order.get("sender_phone" if is_pickup else "receiver_phone", "+212661234567"),
+                "package_description": order.get("package_description", "Package"),
+                "priority": 1 if order.get("service_type") == "express" else 2,
+                "estimated_arrival": (datetime.now() + timedelta(minutes=total_time)).isoformat(),
+                "instructions": f"{'Pick up' if is_pickup else 'Deliver'} package {'from' if is_pickup else 'to'} {order.get('sender_name' if is_pickup else 'receiver_name', 'contact')}",
+                "estimated_duration": 5 if is_pickup else 8
+            })
     
     return {
         "route_points": route_points,
-        "total_distance": round(total_distance, 2),
-        "estimated_time": round(total_time),
+        "total_distance": route_data["total_distance"],
+        "estimated_time": route_data["total_time"],
         "total_stops": len(route_points) - 1,
-        "fuel_cost_estimate": round(total_distance * 0.8, 2),
+        "fuel_cost_estimate": route_data["total_cost"],
+        "cost_savings": route_data["fuel_savings"],
+        "efficiency_score": route_data["efficiency_score"],
         "optimized": True,
         "generated_at": datetime.now().isoformat(),
-        "route_efficiency": "High" if len(route_points) <= 5 else "Medium"
+        "route_efficiency": "Excellent" if route_data["efficiency_score"] > 80 else "Good" if route_data["efficiency_score"] > 60 else "Fair"
     }
 
 def generate_optimized_route(orders: list) -> list:
@@ -1800,20 +1770,145 @@ def calculate_delivery_progress(status: str) -> int:
     }
     return progress_map.get(status, 0)
 
+def get_current_package_location(order: dict, pickup_coords: dict, delivery_coords: dict) -> dict:
+    """Get current package location based on order status"""
+    status = order["status"]
+    
+    # Package at pickup location (not yet collected)
+    if status in ["pending_assignment", "pending_acceptance", "accepted", "assigned"]:
+        return {
+            "lat": pickup_coords["lat"],
+            "lng": pickup_coords["lng"],
+            "description": "Package at pickup location",
+            "type": "pickup"
+        }
+    
+    # Inter-city warehouse locations
+    if order.get("is_inter_city"):
+        if status in ["at_origin_warehouse", "warehouse_processing"]:
+            warehouse = warehouses_db.get(order["pickup_city"])
+            return {
+                "lat": warehouse["lat"] if warehouse else pickup_coords["lat"],
+                "lng": warehouse["lng"] if warehouse else pickup_coords["lng"],
+                "description": f"Package at {order['pickup_city']} warehouse",
+                "type": "warehouse"
+            }
+        
+        if status == "at_destination_warehouse":
+            warehouse = warehouses_db.get(order["delivery_city"])
+            return {
+                "lat": warehouse["lat"] if warehouse else delivery_coords["lat"],
+                "lng": warehouse["lng"] if warehouse else delivery_coords["lng"],
+                "description": f"Package at {order['delivery_city']} warehouse",
+                "type": "warehouse"
+            }
+    
+    # Package with driver (use driver's current location)
+    if status in ["picked_up", "in_transit", "in_transit_inter_city"] and order.get("current_location"):
+        return {
+            "lat": order["current_location"]["lat"],
+            "lng": order["current_location"]["lng"],
+            "description": "Package with driver",
+            "type": "driver"
+        }
+    
+    # Package delivered
+    if status == "delivered":
+        return {
+            "lat": delivery_coords["lat"],
+            "lng": delivery_coords["lng"],
+            "description": "Package delivered",
+            "type": "delivered"
+        }
+    
+    return None
+
+def build_tracking_events(order: dict, driver_info: dict) -> list:
+    """Build comprehensive tracking events list"""
+    events = [
+        {
+            "timestamp": order["created_at"],
+            "status": "Order Created",
+            "location": order["pickup_address"],
+            "description": f"Order {order.get('tracking_number', order['id'])} has been created"
+        }
+    ]
+    
+    if order.get("assigned_driver"):
+        events.append({
+            "timestamp": order.get("accepted_at", order["created_at"]),
+            "status": "Driver Assigned",
+            "location": order["pickup_city"],
+            "description": f"Driver {driver_info['name'] if driver_info else 'Unknown'} has been assigned"
+        })
+    
+    if order["status"] in ["picked_up", "in_transit", "delivered", "at_origin_warehouse", "warehouse_processing", "in_transit_inter_city", "at_destination_warehouse"]:
+        events.append({
+            "timestamp": order.get("picked_up_at", order["created_at"]),
+            "status": "Package Picked Up",
+            "location": order["pickup_address"],
+            "description": "Package has been picked up from sender"
+        })
+    
+    # Inter-city warehouse events
+    if order.get("is_inter_city"):
+        if order["status"] in ["at_origin_warehouse", "warehouse_processing", "in_transit_inter_city", "at_destination_warehouse", "delivered"]:
+            events.append({
+                "timestamp": order.get("warehouse_dropoff_time", order["created_at"]),
+                "status": "At Origin Warehouse",
+                "location": f"{order['pickup_city']} Warehouse",
+                "description": f"Package arrived at {order['pickup_city']} warehouse for processing"
+            })
+        
+        if order["status"] in ["in_transit_inter_city", "at_destination_warehouse", "delivered"]:
+            events.append({
+                "timestamp": order.get("dispatch_time", order["created_at"]),
+                "status": "Inter-City Transit",
+                "location": "En route",
+                "description": f"Package dispatched to {order['delivery_city']}"
+            })
+        
+        if order["status"] in ["at_destination_warehouse", "delivered"]:
+            events.append({
+                "timestamp": order.get("destination_arrival", order["created_at"]),
+                "status": "At Destination Warehouse",
+                "location": f"{order['delivery_city']} Warehouse",
+                "description": f"Package arrived at {order['delivery_city']} warehouse"
+            })
+    
+    if order["status"] in ["in_transit", "delivered"]:
+        events.append({
+            "timestamp": order.get("started_at", order["created_at"]),
+            "status": "Out for Delivery",
+            "location": "En route",
+            "description": "Package is out for final delivery"
+        })
+    
+    if order["status"] == "delivered":
+        events.append({
+            "timestamp": order.get("delivered_at", order["created_at"]),
+            "status": "Delivered",
+            "location": order["delivery_address"],
+            "description": "Package has been successfully delivered"
+        })
+    
+    return events
+
 def get_next_expected_update(order: dict) -> dict:
     """Get next expected update based on current status"""
     status = order["status"]
-    from datetime import datetime, timedelta
     
     next_updates = {
         "pending_assignment": {"event": "Driver Assignment", "eta": "5-15 minutes"},
         "pending_acceptance": {"event": "Driver Acceptance", "eta": "2-10 minutes"},
         "accepted": {"event": "Package Pickup", "eta": "15-30 minutes"},
         "assigned": {"event": "Package Pickup", "eta": "15-30 minutes"},
-        "picked_up": {"event": "Delivery Start", "eta": "5-10 minutes"},
-        "in_transit": {"event": "Package Delivery", "eta": "30-60 minutes"},
-        "warehouse_processing": {"event": "Warehouse Dispatch", "eta": "2-4 hours"},
-        "in_transit_inter_city": {"event": "Arrival at Destination", "eta": "4-8 hours"}
+        "picked_up": {"event": "Warehouse Dropoff" if order.get("is_inter_city") else "Delivery Start", "eta": "30-60 minutes"},
+        "at_origin_warehouse": {"event": "Warehouse Processing", "eta": "2-4 hours"},
+        "warehouse_processing": {"event": "Inter-City Dispatch", "eta": "1-2 hours"},
+        "in_transit_inter_city": {"event": "Destination Warehouse Arrival", "eta": "4-8 hours"},
+        "at_destination_warehouse": {"event": "Final Delivery", "eta": "2-6 hours"},
+        "in_transit": {"event": "Package Delivery", "eta": "30-60 minutes"}
     }
     
     return next_updates.get(status, {"event": "Delivery Complete", "eta": "Completed"})
@@ -1864,6 +1959,9 @@ if __name__ == "__main__":
     print("Warehouse Management")
     print("Multi-Channel Notifications")
     print("Dynamic Route Optimization")
+    print("Multi-Package Batch Assignment")
+    print("TSP-Optimized Routing")
+    print("Cost & Time Reduction")
     print("=" * 60)
     print("Backend: http://localhost:8001")
     print("API Docs: http://localhost:8001/docs")
