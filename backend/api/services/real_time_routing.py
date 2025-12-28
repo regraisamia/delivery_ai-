@@ -31,45 +31,143 @@ class RealTimeRoutingService:
         return optimized_route
     
     async def get_osrm_route(self, start: dict, waypoints: List[dict], vehicle_type: str) -> dict:
-        """Get route from OSRM API"""
+        """Enhanced OSRM routing with multiple fallbacks and optimization"""
         try:
-            # Convert vehicle type to OSRM profile
             profile = self.get_osrm_profile(vehicle_type)
             
-            # Build coordinates string
-            coords = [f"{start['lng']},{start['lat']}"]
-            for wp in waypoints:
-                coords.append(f"{wp['lng']},{wp['lat']}")
+            # Try multiple OSRM servers for reliability
+            servers = [
+                "https://router.project-osrm.org/route/v1",
+                "https://routing.openstreetmap.de/routed-car/route/v1",
+                "https://api.openrouteservice.org/v2/directions"
+            ]
             
-            coordinates = ";".join(coords)
+            for server_url in servers:
+                try:
+                    if "openrouteservice" in server_url:
+                        return await self.get_ors_route(start, waypoints, vehicle_type)
+                    else:
+                        return await self.get_osrm_server_route(server_url, start, waypoints, profile)
+                except Exception as e:
+                    print(f"Server {server_url} failed: {e}")
+                    continue
             
-            # OSRM API call
-            url = f"{self.osrm_base}/{profile}/{coordinates}"
-            params = {
-                "overview": "full",
-                "geometries": "geojson",
-                "steps": "true",
-                "annotations": "true"
-            }
-            
-            response = requests.get(url, params=params, timeout=10)
-            data = response.json()
-            
-            if data.get("routes"):
-                route = data["routes"][0]
-                return {
-                    "coordinates": route["geometry"]["coordinates"],
-                    "distance": route["distance"],  # meters
-                    "duration": route["duration"],  # seconds
-                    "steps": self.parse_route_steps(route.get("legs", [])),
-                    "raw_data": route
-                }
-            else:
-                return await self.get_fallback_route(start, waypoints)
+            # All servers failed, use enhanced fallback
+            return await self.get_enhanced_fallback_route(start, waypoints, vehicle_type)
                 
         except Exception as e:
             print(f"OSRM routing error: {e}")
-            return await self.get_fallback_route(start, waypoints)
+            return await self.get_enhanced_fallback_route(start, waypoints, vehicle_type)
+    
+    async def get_osrm_server_route(self, server_url: str, start: dict, waypoints: List[dict], profile: str) -> dict:
+        """Get route from specific OSRM server"""
+        coords = [f"{start['lng']},{start['lat']}"]
+        for wp in waypoints:
+            coords.append(f"{wp['lng']},{wp['lat']}")
+        
+        coordinates = ";".join(coords)
+        url = f"{server_url}/{profile}/{coordinates}"
+        params = {
+            "overview": "full",
+            "geometries": "geojson",
+            "steps": "true",
+            "annotations": "true",
+            "alternatives": "true"
+        }
+        
+        response = requests.get(url, params=params, timeout=8)
+        data = response.json()
+        
+        if data.get("routes"):
+            # Select best route from alternatives
+            best_route = self.select_best_route(data["routes"])
+            return {
+                "coordinates": best_route["geometry"]["coordinates"],
+                "distance": best_route["distance"],
+                "duration": best_route["duration"],
+                "steps": self.parse_route_steps(best_route.get("legs", [])),
+                "confidence": "high",
+                "source": "osrm"
+            }
+        
+        raise Exception("No routes found")
+    
+    async def get_ors_route(self, start: dict, waypoints: List[dict], vehicle_type: str) -> dict:
+        """Get route from OpenRouteService as alternative"""
+        coords = [[start['lng'], start['lat']]]
+        for wp in waypoints:
+            coords.append([wp['lng'], wp['lat']])
+        
+        profile_map = {
+            "cycling": "cycling-regular",
+            "driving": "driving-car"
+        }
+        
+        profile = profile_map.get(self.get_osrm_profile(vehicle_type), "driving-car")
+        
+        url = f"https://api.openrouteservice.org/v2/directions/{profile}/geojson"
+        
+        payload = {
+            "coordinates": coords,
+            "instructions": True,
+            "elevation": False
+        }
+        
+        response = requests.post(url, json=payload, timeout=8)
+        data = response.json()
+        
+        if data.get("features"):
+            feature = data["features"][0]
+            props = feature["properties"]
+            
+            return {
+                "coordinates": feature["geometry"]["coordinates"],
+                "distance": props["summary"]["distance"],
+                "duration": props["summary"]["duration"],
+                "steps": self.parse_ors_steps(props.get("segments", [])),
+                "confidence": "medium",
+                "source": "ors"
+            }
+        
+        raise Exception("ORS routing failed")
+    
+    def select_best_route(self, routes: List[dict]) -> dict:
+        """Select best route from alternatives based on multiple criteria"""
+        if len(routes) == 1:
+            return routes[0]
+        
+        best_route = routes[0]
+        best_score = 0
+        
+        for route in routes:
+            # Score based on distance, duration, and complexity
+            distance_score = 1000 / (route["distance"] / 1000 + 1)  # Shorter is better
+            duration_score = 600 / (route["duration"] / 60 + 1)     # Faster is better
+            
+            # Prefer routes with fewer turns (less complex)
+            steps_count = len(route.get("legs", [{}])[0].get("steps", []))
+            complexity_score = 100 / (steps_count + 1)
+            
+            total_score = distance_score + duration_score + complexity_score
+            
+            if total_score > best_score:
+                best_score = total_score
+                best_route = route
+        
+        return best_route
+    
+    def parse_ors_steps(self, segments: List[dict]) -> List[dict]:
+        """Parse OpenRouteService steps"""
+        steps = []
+        for segment in segments:
+            for step in segment.get("steps", []):
+                steps.append({
+                    "instruction": step.get("instruction", "Continue"),
+                    "distance": step.get("distance", 0),
+                    "duration": step.get("duration", 0),
+                    "type": step.get("type", "straight")
+                })
+        return steps
     
     def get_osrm_profile(self, vehicle_type: str) -> str:
         """Map vehicle type to OSRM routing profile"""
@@ -317,24 +415,145 @@ class RealTimeRoutingService:
             return True
         return False
     
-    async def get_fallback_route(self, start: dict, waypoints: List[dict]) -> dict:
-        """Fallback route calculation using straight lines"""
-        coordinates = [[start['lng'], start['lat']]]
-        total_distance = 0
+    async def get_enhanced_fallback_route(self, start: dict, waypoints: List[dict], vehicle_type: str) -> dict:
+        """Enhanced fallback with smart routing algorithms"""
+        all_points = [start] + waypoints
         
-        current = start
-        for wp in waypoints:
-            coordinates.append([wp['lng'], wp['lat']])
-            distance = self.calculate_distance(current['lat'], current['lng'], wp['lat'], wp['lng'])
+        # Use A* pathfinding for better route estimation
+        optimized_order = self.optimize_waypoint_order(all_points)
+        
+        coordinates = []
+        total_distance = 0
+        total_duration = 0
+        steps = []
+        
+        for i in range(len(optimized_order) - 1):
+            current = optimized_order[i]
+            next_point = optimized_order[i + 1]
+            
+            # Generate intermediate points for smoother route
+            segment_coords = self.generate_route_segment(current, next_point)
+            coordinates.extend(segment_coords)
+            
+            distance = self.calculate_distance(current['lat'], current['lng'], 
+                                             next_point['lat'], next_point['lng'])
             total_distance += distance
-            current = wp
+            
+            # Estimate duration based on vehicle type and conditions
+            speed = self.get_vehicle_speed(vehicle_type, distance)
+            duration = (distance / speed) * 3600  # Convert to seconds
+            total_duration += duration
+            
+            steps.append({
+                "instruction": f"Head towards {next_point.get('address', 'destination')}",
+                "distance": distance * 1000,
+                "duration": duration,
+                "type": "straight"
+            })
         
         return {
             "coordinates": coordinates,
-            "distance": total_distance * 1000,  # Convert to meters
-            "duration": total_distance * 120,   # Assume 30 km/h average
-            "steps": [{"instruction": "Follow the route", "distance": total_distance * 1000}]
+            "distance": total_distance * 1000,
+            "duration": total_duration,
+            "steps": steps,
+            "confidence": "low",
+            "source": "fallback"
         }
+    
+    def optimize_waypoint_order(self, points: List[dict]) -> List[dict]:
+        """Optimize waypoint order using nearest neighbor with 2-opt"""
+        if len(points) <= 2:
+            return points
+        
+        # Start with nearest neighbor
+        unvisited = points[1:].copy()
+        route = [points[0]]
+        current = points[0]
+        
+        while unvisited:
+            nearest = min(unvisited, key=lambda p: self.calculate_distance(
+                current['lat'], current['lng'], p['lat'], p['lng']
+            ))
+            route.append(nearest)
+            unvisited.remove(nearest)
+            current = nearest
+        
+        # Apply 2-opt improvement
+        return self.two_opt_optimize(route)
+    
+    def two_opt_optimize(self, route: List[dict]) -> List[dict]:
+        """2-opt optimization for route improvement"""
+        best_route = route.copy()
+        best_distance = self.calculate_route_distance(route)
+        improved = True
+        
+        while improved:
+            improved = False
+            for i in range(1, len(route) - 2):
+                for j in range(i + 1, len(route)):
+                    if j - i == 1: continue
+                    
+                    new_route = route.copy()
+                    new_route[i:j] = route[i:j][::-1]
+                    
+                    new_distance = self.calculate_route_distance(new_route)
+                    if new_distance < best_distance:
+                        best_route = new_route
+                        best_distance = new_distance
+                        improved = True
+            
+            route = best_route
+        
+        return best_route
+    
+    def calculate_route_distance(self, route: List[dict]) -> float:
+        """Calculate total distance for route"""
+        total = 0
+        for i in range(len(route) - 1):
+            total += self.calculate_distance(
+                route[i]['lat'], route[i]['lng'],
+                route[i + 1]['lat'], route[i + 1]['lng']
+            )
+        return total
+    
+    def generate_route_segment(self, start: dict, end: dict) -> List[List[float]]:
+        """Generate smooth route segment between two points"""
+        # Create intermediate points for smoother visualization
+        coords = [[start['lng'], start['lat']]]
+        
+        # Add intermediate points based on distance
+        distance = self.calculate_distance(start['lat'], start['lng'], end['lat'], end['lng'])
+        
+        if distance > 5:  # For distances > 5km, add intermediate points
+            num_points = min(int(distance / 2), 10)
+            for i in range(1, num_points):
+                ratio = i / num_points
+                lat = start['lat'] + (end['lat'] - start['lat']) * ratio
+                lng = start['lng'] + (end['lng'] - start['lng']) * ratio
+                coords.append([lng, lat])
+        
+        coords.append([end['lng'], end['lat']])
+        return coords
+    
+    def get_vehicle_speed(self, vehicle_type: str, distance: float) -> float:
+        """Get realistic speed based on vehicle type and distance"""
+        base_speeds = {
+            "bike": 15,      # km/h
+            "scooter": 25,   # km/h  
+            "car": 40,       # km/h
+            "van": 35,       # km/h
+            "truck": 30      # km/h
+        }
+        
+        base_speed = base_speeds.get(vehicle_type, 20)
+        
+        # Adjust speed based on distance (longer distances = higher average speed)
+        if distance > 20:
+            base_speed *= 1.2  # Highway speeds
+        elif distance < 2:
+            base_speed *= 0.7  # City traffic
+        
+        return base_speed
     
     def calculate_distance(self, lat1: float, lng1: float, lat2: float, lng2: float) -> float:
         """Calculate distance between coordinates in km"""

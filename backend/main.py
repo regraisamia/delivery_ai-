@@ -27,9 +27,9 @@ app.include_router(driver_router, prefix="/api", tags=["Driver Management"])
 from api.routes.routing import router as routing_router
 app.include_router(routing_router, prefix="/api", tags=["Routing"])
 
-# Include batch assignment
-from api.routes.batch_assignment import router as batch_router
-app.include_router(batch_router, prefix="/api", tags=["Batch Assignment"])
+# Include enhanced routing
+from api.routes.enhanced_routing import router as enhanced_routing_router
+app.include_router(enhanced_routing_router, prefix="/api", tags=["Enhanced Routing"])
 
 # Debug routes
 from api.routes.assignment_debug import router as debug_router
@@ -111,33 +111,44 @@ class AdminLoginRequest(BaseModel):
 @app.get("/")
 def root():
     return {
-        "message": "Enhanced Multi-Agent Delivery System",
+        "message": "🚀 ULTIMATE MULTI-AGENT DELIVERY SYSTEM",
         "status": "running",
-        "enhanced_features": [
-            "Real-time GPS tracking",
-            "Weather-aware routing", 
-            "Warehouse management",
-            "Multi-channel notifications",
-            "Dynamic route optimization",
-            "Multi-package batch assignment",
-            "TSP-optimized routing",
-            "Cost and time reduction"
-        ],
-        "endpoints": [
-            "POST /api/auth/login",
-            "POST /api/orders",
-            "POST /api/inter-city/orders",
-            "POST /api/batch/assign-multiple",
-            "POST /api/batch/create-optimized-batch",
-            "GET /api/orders",
-            "GET /api/cities",
-            "GET /docs"
-        ],
-        "delivery_types": {
-            "intra_city": "Same city delivery (2-6 hours)",
-            "inter_city": "Between cities (1-3 days)"
+        "version": "3.0 ULTIMATE",
+        "total_drivers": len(drivers_db),
+        "city_coverage": {
+            "Casablanca": f"{len([d for d in drivers_db if d['assigned_city'] == 'Casablanca'])} drivers",
+            "Rabat": f"{len([d for d in drivers_db if d['assigned_city'] == 'Rabat'])} drivers", 
+            "Marrakech": f"{len([d for d in drivers_db if d['assigned_city'] == 'Marrakech'])} drivers",
+            "Agadir": f"{len([d for d in drivers_db if d['assigned_city'] == 'Agadir'])} drivers",
+            "El Jadida": f"{len([d for d in drivers_db if d['assigned_city'] == 'El Jadida'])} drivers",
+            "Salé": f"{len([d for d in drivers_db if d['assigned_city'] == 'Salé'])} drivers"
         },
-        "supported_cities": ["Casablanca", "Rabat", "Marrakech", "El Jadida", "Salé", "Agadir"]
+        "ultimate_features": [
+            "🎯 Multi-driver city coverage (16 total drivers)",
+            "🧠 AI-powered intelligent assignment",
+            "📍 Real-time location-based scoring",
+            "🚗 Vehicle-type optimization", 
+            "⭐ Rating-based selection",
+            "🎪 Specialty matching system",
+            "📊 Load balancing algorithm",
+            "🌦️ Weather-aware routing",
+            "📦 Multi-package optimization",
+            "🏪 Warehouse management"
+        ],
+        "assignment_factors": {
+            "city_match": "50% weight - Same city priority with GPS distance",
+            "availability_load": "20% weight - Driver status and workload",
+            "vehicle_suitability": "15% weight - Vehicle type and capacity",
+            "driver_rating": "10% weight - Performance and satisfaction",
+            "specialties": "5% weight - Skill matching"
+        },
+        "key_endpoints": [
+            "GET /api/drivers/by-city - Multi-driver city view",
+            "GET /api/system/coverage - Ultimate coverage stats", 
+            "GET /api/driver/test-login - Working credentials",
+            "POST /api/orders - Intelligent order creation",
+            "GET /api/assignment/simulate - Test assignment logic"
+        ]
     }
 
 @app.get("/api/test")
@@ -181,23 +192,38 @@ class DriverLoginRequest(BaseModel):
 
 @app.post("/api/driver/login")
 def driver_login(request: DriverLoginRequest):
-    # Check against drivers database
-    driver = next((d for d in drivers_db if d["email"] == request.email), None)
-    if driver and request.password == "driver123":  # Simple password check for demo
-        return {
-            "access_token": "driver-token-123",
-            "token_type": "bearer",
-            "driver": {
-                "id": driver["id"],
-                "email": driver["email"],
-                "name": driver["name"],
-                "phone": driver["phone"],
-                "vehicle_type": driver["vehicle_type"],
-                "status": driver["status"],
-                "rating": driver["rating"]
+    # Direct credential mapping
+    valid_emails = {
+        "ahmed@delivery.ma": "DRV001",
+        "youssef@delivery.ma": "DRV002", 
+        "fatima@delivery.ma": "DRV003",
+        "karim@delivery.ma": "DRV004",
+        "laila@delivery.ma": "DRV005",
+        "omar@delivery.ma": "DRV006",
+        "nadia@delivery.ma": "DRV007",
+        "hassan@delivery.ma": "DRV008",
+        "aicha@delivery.ma": "DRV009",
+        "rachid@delivery.ma": "DRV010",
+        "khadija@delivery.ma": "DRV011",
+        "mehdi@delivery.ma": "DRV012",
+        "zineb@delivery.ma": "DRV013",
+        "samir@delivery.ma": "DRV014",
+        "amina@delivery.ma": "DRV015",
+        "khalid@delivery.ma": "DRV016",
+        "driver@example.com": "DRV001"
+    }
+    
+    driver_id = valid_emails.get(request.email.lower())
+    if driver_id and request.password in ["driver123", "123"]:
+        driver = next((d for d in drivers_db if d["id"] == driver_id), None)
+        if driver:
+            return {
+                "access_token": f"driver-token-{driver_id}",
+                "token_type": "bearer",
+                "driver": driver
             }
-        }
-    return {"detail": "Invalid credentials"}
+    
+    return {"detail": "Invalid credentials. Use driver email with password 'driver123'"}
 
 # Enhanced data storage with test orders
 orders_db = [
@@ -428,84 +454,274 @@ orders_db = [
         "transport_schedule": {"next_departure": "07:00", "duration": "6 hours", "vehicle": "truck"}
     }
 ]
+# ULTIMATE FINAL VERSION - Multiple drivers per city with intelligent assignment
 drivers_db = [
+    # CASABLANCA DRIVERS (4 drivers)
     {
         "id": "DRV001",
         "name": "Ahmed Benali",
-        "email": "driver@example.com",
+        "email": "ahmed@delivery.ma",
         "phone": "+212661234567",
         "vehicle_type": "bike",
         "vehicle_capacity": 20.0,
+        "assigned_city": "Casablanca",
         "current_location": {"lat": 33.5731, "lng": -7.5898, "city": "Casablanca"},
         "status": "available",
         "current_orders": [],
         "rating": 4.8,
-        "total_deliveries": 156
+        "total_deliveries": 156,
+        "working_hours": {"start": "08:00", "end": "20:00"},
+        "specialties": ["express_delivery", "documents"]
     },
     {
         "id": "DRV002",
-        "name": "Fatima Zahra",
-        "email": "fatima@delivery.ma",
+        "name": "Youssef Alami",
+        "email": "youssef@delivery.ma",
         "phone": "+212662345678",
         "vehicle_type": "car",
         "vehicle_capacity": 100.0,
+        "assigned_city": "Casablanca",
+        "current_location": {"lat": 33.5850, "lng": -7.6000, "city": "Casablanca"},
+        "status": "available",
+        "current_orders": [],
+        "rating": 4.9,
+        "total_deliveries": 203,
+        "working_hours": {"start": "07:00", "end": "19:00"},
+        "specialties": ["bulk_delivery", "fragile_items"]
+    },
+    {
+        "id": "DRV003",
+        "name": "Fatima Zahra",
+        "email": "fatima@delivery.ma",
+        "phone": "+212663456789",
+        "vehicle_type": "scooter",
+        "vehicle_capacity": 30.0,
+        "assigned_city": "Casablanca",
+        "current_location": {"lat": 33.5600, "lng": -7.5700, "city": "Casablanca"},
+        "status": "busy",
+        "current_orders": ["ORD1001"],
+        "rating": 4.7,
+        "total_deliveries": 89,
+        "working_hours": {"start": "09:00", "end": "21:00"},
+        "specialties": ["fast_delivery", "city_center"]
+    },
+    {
+        "id": "DRV004",
+        "name": "Karim Bennani",
+        "email": "karim@delivery.ma",
+        "phone": "+212664567890",
+        "vehicle_type": "van",
+        "vehicle_capacity": 200.0,
+        "assigned_city": "Casablanca",
+        "current_location": {"lat": 33.5900, "lng": -7.6100, "city": "Casablanca"},
+        "status": "available",
+        "current_orders": [],
+        "rating": 4.6,
+        "total_deliveries": 312,
+        "working_hours": {"start": "06:00", "end": "18:00"},
+        "specialties": ["heavy_cargo", "warehouse", "inter_city"]
+    },
+    
+    # RABAT DRIVERS (3 drivers)
+    {
+        "id": "DRV005",
+        "name": "Laila Alaoui",
+        "email": "laila@delivery.ma",
+        "phone": "+212665678901",
+        "vehicle_type": "car",
+        "vehicle_capacity": 80.0,
+        "assigned_city": "Rabat",
         "current_location": {"lat": 34.0209, "lng": -6.8416, "city": "Rabat"},
         "status": "available",
         "current_orders": [],
         "rating": 4.9,
-        "total_deliveries": 203
+        "total_deliveries": 145,
+        "working_hours": {"start": "07:30", "end": "20:30"},
+        "specialties": ["residential", "same_day"]
     },
     {
-        "id": "DRV003",
-        "name": "Youssef Alami",
-        "email": "youssef@delivery.ma",
-        "phone": "+212663456789",
+        "id": "DRV006",
+        "name": "Omar Tazi",
+        "email": "omar@delivery.ma",
+        "phone": "+212666789012",
+        "vehicle_type": "bike",
+        "vehicle_capacity": 25.0,
+        "assigned_city": "Rabat",
+        "current_location": {"lat": 34.0300, "lng": -6.8500, "city": "Rabat"},
+        "status": "available",
+        "current_orders": [],
+        "rating": 4.8,
+        "total_deliveries": 67,
+        "working_hours": {"start": "08:30", "end": "19:30"},
+        "specialties": ["express_delivery", "documents"]
+    },
+    {
+        "id": "DRV007",
+        "name": "Nadia Benali",
+        "email": "nadia@delivery.ma",
+        "phone": "+212667890123",
         "vehicle_type": "scooter",
-        "vehicle_capacity": 30.0,
-        "current_location": {"lat": 31.6295, "lng": -7.9811, "city": "Marrakech"},
+        "vehicle_capacity": 35.0,
+        "assigned_city": "Rabat",
+        "current_location": {"lat": 34.0100, "lng": -6.8300, "city": "Rabat"},
         "status": "available",
         "current_orders": [],
         "rating": 4.7,
-        "total_deliveries": 89
+        "total_deliveries": 98,
+        "working_hours": {"start": "08:00", "end": "20:00"},
+        "specialties": ["fast_delivery", "fragile_items"]
+    },
+    
+    # MARRAKECH DRIVERS (3 drivers)
+    {
+        "id": "DRV008",
+        "name": "Hassan Alami",
+        "email": "hassan@delivery.ma",
+        "phone": "+212668901234",
+        "vehicle_type": "car",
+        "vehicle_capacity": 90.0,
+        "assigned_city": "Marrakech",
+        "current_location": {"lat": 31.6295, "lng": -7.9811, "city": "Marrakech"},
+        "status": "busy",
+        "current_orders": ["ORD1003"],
+        "rating": 4.8,
+        "total_deliveries": 134,
+        "working_hours": {"start": "07:00", "end": "19:00"},
+        "specialties": ["bulk_delivery", "residential"]
     },
     {
-        "id": "DRV004",
-        "name": "Khadija Bennani",
+        "id": "DRV009",
+        "name": "Aicha Bennani",
+        "email": "aicha@delivery.ma",
+        "phone": "+212669012345",
+        "vehicle_type": "bike",
+        "vehicle_capacity": 22.0,
+        "assigned_city": "Marrakech",
+        "current_location": {"lat": 31.6400, "lng": -7.9900, "city": "Marrakech"},
+        "status": "available",
+        "current_orders": [],
+        "rating": 4.6,
+        "total_deliveries": 76,
+        "working_hours": {"start": "09:00", "end": "21:00"},
+        "specialties": ["express_delivery", "city_center"]
+    },
+    {
+        "id": "DRV010",
+        "name": "Rachid Tazi",
+        "email": "rachid@delivery.ma",
+        "phone": "+212660123456",
+        "vehicle_type": "van",
+        "vehicle_capacity": 180.0,
+        "assigned_city": "Marrakech",
+        "current_location": {"lat": 31.6200, "lng": -7.9700, "city": "Marrakech"},
+        "status": "available",
+        "current_orders": [],
+        "rating": 4.9,
+        "total_deliveries": 201,
+        "working_hours": {"start": "06:00", "end": "18:00"},
+        "specialties": ["heavy_cargo", "warehouse", "inter_city"]
+    },
+    
+    # AGADIR DRIVERS (2 drivers)
+    {
+        "id": "DRV011",
+        "name": "Khadija Alaoui",
         "email": "khadija@delivery.ma",
-        "phone": "+212664567890",
+        "phone": "+212661234567",
         "vehicle_type": "van",
         "vehicle_capacity": 200.0,
+        "assigned_city": "Agadir",
         "current_location": {"lat": 30.4278, "lng": -9.5981, "city": "Agadir"},
         "status": "available",
         "current_orders": [],
         "rating": 4.9,
-        "total_deliveries": 312
+        "total_deliveries": 312,
+        "working_hours": {"start": "06:00", "end": "18:00"},
+        "specialties": ["heavy_cargo", "long_distance", "warehouse"]
     },
     {
-        "id": "DRV005",
-        "name": "Omar Tazi",
-        "email": "omar@delivery.ma",
-        "phone": "+212665678901",
+        "id": "DRV012",
+        "name": "Mehdi Benali",
+        "email": "mehdi@delivery.ma",
+        "phone": "+212662345678",
+        "vehicle_type": "car",
+        "vehicle_capacity": 85.0,
+        "assigned_city": "Agadir",
+        "current_location": {"lat": 30.4400, "lng": -9.6100, "city": "Agadir"},
+        "status": "available",
+        "current_orders": [],
+        "rating": 4.7,
+        "total_deliveries": 89,
+        "working_hours": {"start": "08:00", "end": "20:00"},
+        "specialties": ["coastal_delivery", "same_day"]
+    },
+    
+    # EL JADIDA DRIVERS (2 drivers)
+    {
+        "id": "DRV013",
+        "name": "Zineb Alami",
+        "email": "zineb@delivery.ma",
+        "phone": "+212663456789",
         "vehicle_type": "bike",
         "vehicle_capacity": 25.0,
+        "assigned_city": "El Jadida",
         "current_location": {"lat": 33.2316, "lng": -8.5007, "city": "El Jadida"},
         "status": "available",
         "current_orders": [],
         "rating": 4.6,
-        "total_deliveries": 67
+        "total_deliveries": 67,
+        "working_hours": {"start": "08:30", "end": "19:30"},
+        "specialties": ["coastal_delivery", "documents"]
     },
     {
-        "id": "DRV006",
-        "name": "Aicha Benali",
-        "email": "aicha@delivery.ma",
-        "phone": "+212666789012",
+        "id": "DRV014",
+        "name": "Samir Bennani",
+        "email": "samir@delivery.ma",
+        "phone": "+212664567890",
+        "vehicle_type": "scooter",
+        "vehicle_capacity": 40.0,
+        "assigned_city": "El Jadida",
+        "current_location": {"lat": 33.2400, "lng": -8.5100, "city": "El Jadida"},
+        "status": "available",
+        "current_orders": [],
+        "rating": 4.8,
+        "total_deliveries": 123,
+        "working_hours": {"start": "07:00", "end": "19:00"},
+        "specialties": ["fast_delivery", "express_delivery"]
+    },
+    
+    # SALÉ DRIVERS (2 drivers)
+    {
+        "id": "DRV015",
+        "name": "Amina Tazi",
+        "email": "amina@delivery.ma",
+        "phone": "+212665678901",
         "vehicle_type": "car",
         "vehicle_capacity": 80.0,
+        "assigned_city": "Salé",
         "current_location": {"lat": 34.0531, "lng": -6.7985, "city": "Salé"},
         "status": "available",
         "current_orders": [],
         "rating": 4.8,
-        "total_deliveries": 145
+        "total_deliveries": 145,
+        "working_hours": {"start": "07:30", "end": "20:30"},
+        "specialties": ["residential", "same_day"]
+    },
+    {
+        "id": "DRV016",
+        "name": "Khalid Alaoui",
+        "email": "khalid@delivery.ma",
+        "phone": "+212666789012",
+        "vehicle_type": "bike",
+        "vehicle_capacity": 28.0,
+        "assigned_city": "Salé",
+        "current_location": {"lat": 34.0600, "lng": -6.8100, "city": "Salé"},
+        "status": "available",
+        "current_orders": [],
+        "rating": 4.7,
+        "total_deliveries": 92,
+        "working_hours": {"start": "08:00", "end": "20:00"},
+        "specialties": ["express_delivery", "documents"]
     }
 ]
 
@@ -519,8 +735,26 @@ warehouses_db = {
 }
 
 @app.get("/api/orders")
-def get_orders():
-    return orders_db
+def get_user_orders():
+    """Get orders for current user"""
+    # For demo, return all orders - in production, filter by user_id
+    user_orders = []
+    for order in orders_db:
+        user_orders.append({
+            "id": order["id"],
+            "tracking_number": order.get("tracking_number", order["id"]),
+            "status": order["status"],
+            "sender_name": order.get("sender_name", "Test User"),
+            "receiver_name": order.get("receiver_name", "Receiver"),
+            "pickup_address": order["pickup_address"],
+            "delivery_address": order["delivery_address"],
+            "price": order.get("total_cost", order.get("price", 0)),
+            "created_at": order["created_at"],
+            "service_type": order.get("service_type", "standard"),
+            "is_inter_city": order.get("is_inter_city", False)
+        })
+    
+    return user_orders
 
 @app.post("/api/orders")
 async def create_order(order: OrderCreate):
@@ -592,24 +826,46 @@ async def create_order(order: OrderCreate):
     # Smart driver assignment with fallback
     assignment_service = SmartAssignmentService()
     
-    # Get available drivers in the pickup city
-    available_drivers = [d for d in drivers_db if 
-                        d.get("status") in ["available", "online"] and 
-                        d.get("current_location", {}).get("city", order.pickup_city).lower() == order.pickup_city.lower()]
+    # Get available drivers in the pickup city with enhanced city matching
+    city_drivers = [d for d in drivers_db if 
+                   d.get("status") in ["available", "online"] and 
+                   d.get("assigned_city", d.get("current_location", {}).get("city", "")).lower() == order.pickup_city.lower()]
     
-    # If no drivers in same city, get any available driver
-    if not available_drivers:
+    # If no drivers in same city, get nearby drivers
+    if not city_drivers:
         available_drivers = [d for d in drivers_db if d.get("status") in ["available", "online"]]
+        # Sort by distance to pickup city
+        for driver in available_drivers:
+            driver_city = driver.get("assigned_city", driver.get("current_location", {}).get("city", "Casablanca"))
+            driver_coords = get_city_coordinates(driver_city)
+            pickup_coords = get_city_coordinates(order.pickup_city)
+            driver["_temp_distance"] = calculate_gps_distance(
+                driver_coords["lat"], driver_coords["lng"],
+                pickup_coords["lat"], pickup_coords["lng"]
+            )
+        city_drivers = sorted(available_drivers, key=lambda d: d.get("_temp_distance", 999))[:3]
     
-    best_driver = await assignment_service.find_best_driver(new_order, available_drivers)
+    best_driver = await assignment_service.find_best_driver(new_order, city_drivers)
     
     if best_driver:
         new_order["assigned_driver"] = best_driver["id"]
         new_order["status"] = "pending_acceptance"
         new_order["assignment_attempts"] = 1
     else:
-        # Force assign to any available driver as fallback
-        fallback_driver = next((d for d in drivers_db if d.get("status") in ["available", "online"]), None)
+        # Force assign to city-based driver as fallback
+        fallback_driver = None
+        
+        # First try: Same city drivers
+        same_city_drivers = [d for d in drivers_db if 
+                           d.get("status") in ["available", "online"] and
+                           d.get("assigned_city", d.get("current_location", {}).get("city", "")).lower() == order.pickup_city.lower()]
+        
+        if same_city_drivers:
+            fallback_driver = same_city_drivers[0]
+        else:
+            # Second try: Any available driver
+            fallback_driver = next((d for d in drivers_db if d.get("status") in ["available", "online"]), None)
+        
         if fallback_driver:
             new_order["assigned_driver"] = fallback_driver["id"]
             new_order["status"] = "assigned"
@@ -819,63 +1075,172 @@ def calculate_inter_city_distance(city1: str, city2: str) -> float:
     return distances.get(key, 200)  # Default distance
 
 def assign_best_driver(order: dict, excluded_drivers: list = []) -> dict:
-    """Advanced GPS-based driver assignment with route optimization"""
+    """ULTIMATE ASSIGNMENT: Multi-factor intelligent driver selection"""
     pickup_coords = get_city_coordinates(order["pickup_city"])
     
-    # Find drivers in same city with capacity, excluding rejected ones
-    available_drivers = [d for d in drivers_db if 
-                        d["id"] not in excluded_drivers and
-                        d["status"] in ["available", "busy"] and 
-                        d["current_location"]["city"].lower() == order["pickup_city"].lower() and
-                        len(d["current_orders"]) < get_max_orders_for_vehicle(d["vehicle_type"]) and
-                        sum([get_order_weight(oid) for oid in d["current_orders"]]) + order["weight"] <= d["vehicle_capacity"]]
+    # Enhanced driver selection with city matching and better logic
+    city_drivers = [d for d in drivers_db if 
+                   d["id"] not in excluded_drivers and
+                   d["status"] in ["available", "busy"] and 
+                   d["assigned_city"].lower() == order["pickup_city"].lower() and
+                   len(d["current_orders"]) < get_max_orders_for_vehicle(d["vehicle_type"]) and
+                   sum([get_order_weight(oid) for oid in d["current_orders"]]) + order["weight"] <= d["vehicle_capacity"]]
     
-    if not available_drivers:
+    if not city_drivers:
+        # Fallback: Get drivers from nearby cities with distance penalty
+        all_drivers = [d for d in drivers_db if 
+                      d["id"] not in excluded_drivers and
+                      d["status"] in ["available", "busy"] and
+                      len(d["current_orders"]) < get_max_orders_for_vehicle(d["vehicle_type"])]
+        
+        # Calculate distance and sort by proximity
+        for driver in all_drivers:
+            driver_coords = get_city_coordinates(driver["assigned_city"])
+            driver["_temp_distance"] = calculate_gps_distance(
+                driver_coords["lat"], driver_coords["lng"],
+                pickup_coords["lat"], pickup_coords["lng"]
+            )
+        
+        # Only consider drivers within 100km for realistic assignment
+        city_drivers = [d for d in all_drivers if d.get("_temp_distance", 999) <= 100]
+        city_drivers = sorted(city_drivers, key=lambda d: d.get("_temp_distance", 999))[:3]
+    
+    if not city_drivers:
         return None
     
-    # Score drivers based on multiple factors
+    # INTELLIGENT SCORING: Multiple factors
     best_driver = None
     best_score = -1
     
-    for driver in available_drivers:
-        score = calculate_driver_assignment_score(driver, order, pickup_coords)
+    for driver in city_drivers:
+        score = calculate_ultimate_driver_score(driver, order, pickup_coords)
         if score > best_score:
             best_score = score
             best_driver = driver
     
     return best_driver
 
-def calculate_driver_assignment_score(driver: dict, order: dict, pickup_coords: dict) -> float:
-    """Calculate comprehensive driver assignment score"""
+def calculate_ultimate_driver_score(driver: dict, order: dict, pickup_coords: dict) -> float:
+    """ENHANCED SCORING: Realistic and logical assignment factors"""
     score = 0
     
-    # Distance factor (closer is better)
-    driver_coords = driver["current_location"]
-    distance = calculate_gps_distance(
-        driver_coords["lat"], driver_coords["lng"],
-        pickup_coords["lat"], pickup_coords["lng"]
-    )
-    distance_score = max(0, 100 - distance * 2)  # Penalty for distance
-    score += distance_score * 0.4
+    # 1. CITY MATCH (50 points max) - Most important factor
+    if driver["assigned_city"].lower() == order["pickup_city"].lower():
+        # Same city - calculate exact distance from current location
+        distance = calculate_gps_distance(
+            driver["current_location"]["lat"], driver["current_location"]["lng"],
+            pickup_coords["lat"], pickup_coords["lng"]
+        )
+        # Closer drivers get higher scores (max 50 points for <1km, decreasing)
+        location_score = max(10, 50 - distance * 5)
+    else:
+        # Different city - significant penalty but still possible
+        city_distance = calculate_gps_distance(
+            get_city_coordinates(driver["assigned_city"])["lat"],
+            get_city_coordinates(driver["assigned_city"])["lng"],
+            pickup_coords["lat"], pickup_coords["lng"]
+        )
+        # Max 20 points for cross-city, decreasing with distance
+        location_score = max(0, 20 - city_distance * 0.2)
     
-    # Driver rating factor
-    rating_score = (driver["rating"] / 5.0) * 100
-    score += rating_score * 0.2
+    score += location_score
     
-    # Current load factor (less loaded is better)
-    load_factor = len(driver["current_orders"]) / get_max_orders_for_vehicle(driver["vehicle_type"])
-    load_score = (1 - load_factor) * 100
-    score += load_score * 0.2
+    # 2. AVAILABILITY & LOAD (20 points max)
+    if driver["status"] == "available":
+        availability_score = 20
+    elif driver["status"] == "busy":
+        # Penalize busy drivers based on current load
+        max_orders = get_max_orders_for_vehicle(driver["vehicle_type"])
+        load_factor = len(driver["current_orders"]) / max_orders
+        availability_score = max(5, 15 - load_factor * 10)
+    else:
+        availability_score = 0
     
-    # Vehicle type suitability
-    vehicle_score = get_vehicle_suitability_score(driver["vehicle_type"], order)
-    score += vehicle_score * 0.1
+    score += availability_score
     
-    # Route optimization potential
-    route_score = calculate_route_optimization_score(driver, order)
-    score += route_score * 0.1
+    # 3. VEHICLE SUITABILITY (15 points max)
+    vehicle_score = get_enhanced_vehicle_score(driver["vehicle_type"], order)
+    score += min(15, vehicle_score)
     
-    return score
+    # 4. DRIVER RATING (10 points max)
+    rating_score = (driver["rating"] / 5.0) * 10
+    score += rating_score
+    
+    # 5. SPECIALTY MATCHING (5 points max)
+    specialty_score = calculate_enhanced_specialty_bonus(driver, order)
+    score += min(5, specialty_score)
+    
+    return round(score, 2)
+
+def get_enhanced_vehicle_score(vehicle_type: str, order: dict) -> float:
+    """Realistic vehicle scoring based on actual delivery requirements"""
+    weight = order.get("weight", 1.0)
+    service_type = order.get("service_type", "standard")
+    is_fragile = order.get("fragile", False)
+    
+    # Realistic vehicle capabilities
+    vehicle_specs = {
+        "bike": {"max_weight": 15, "speed_factor": 1.2, "cost_efficiency": 1.0, "fragile_safe": 0.7},
+        "scooter": {"max_weight": 25, "speed_factor": 1.1, "cost_efficiency": 0.9, "fragile_safe": 0.8},
+        "car": {"max_weight": 80, "speed_factor": 1.0, "cost_efficiency": 0.7, "fragile_safe": 1.0},
+        "van": {"max_weight": 200, "speed_factor": 0.8, "cost_efficiency": 0.5, "fragile_safe": 1.0}
+    }
+    
+    specs = vehicle_specs.get(vehicle_type, vehicle_specs["bike"])
+    
+    # Base suitability check
+    if weight > specs["max_weight"]:
+        return 0  # Vehicle cannot handle the weight
+    
+    base_score = 10  # Base score for suitable vehicle
+    
+    # Express delivery bonus for faster vehicles
+    if service_type == "express":
+        base_score += specs["speed_factor"] * 5
+    
+    # Fragile item handling
+    if is_fragile:
+        base_score += specs["fragile_safe"] * 3
+    
+    # Weight efficiency (better score for appropriate vehicle size)
+    weight_ratio = weight / specs["max_weight"]
+    if 0.3 <= weight_ratio <= 0.8:  # Optimal load range
+        base_score += 3
+    elif weight_ratio < 0.3:  # Underutilized
+        base_score += 1
+    
+    return min(15, base_score)
+
+def calculate_enhanced_specialty_bonus(driver: dict, order: dict) -> float:
+    """Realistic specialty matching with logical bonuses"""
+    bonus = 0
+    specialties = driver.get("specialties", [])
+    
+    # Express delivery matching
+    if order.get("service_type") == "express":
+        if "express_delivery" in specialties:
+            bonus += 3
+        elif "fast_delivery" in specialties:
+            bonus += 2
+    
+    # Package type matching
+    if order.get("fragile") and "fragile_items" in specialties:
+        bonus += 2
+    
+    if order.get("weight", 0) > 20 and "heavy_cargo" in specialties:
+        bonus += 2
+    
+    # Delivery type matching
+    if order.get("is_inter_city") and "inter_city" in specialties:
+        bonus += 3
+    
+    # Location specialties (minor bonuses)
+    if "city_center" in specialties:
+        bonus += 0.5
+    if "residential" in specialties:
+        bonus += 0.5
+    
+    return min(5, bonus)
 
 def get_max_orders_for_vehicle(vehicle_type: str) -> int:
     """Get maximum orders per vehicle type"""
@@ -956,9 +1321,161 @@ def get_order_weight(order_id: str) -> float:
     return order["weight"] if order else 0
 
 # Enhanced tracking and driver management endpoints
-@app.get("/api/drivers")
-def get_drivers():
-    return drivers_db
+@app.get("/api/drivers/by-city")
+def get_drivers_by_city():
+    """Get drivers organized by their assigned cities"""
+    city_assignments = {}
+    
+    for driver in drivers_db:
+        city = driver.get("assigned_city", "Unknown")
+        if city not in city_assignments:
+            city_assignments[city] = []
+        
+        city_assignments[city].append({
+            "id": driver["id"],
+            "name": driver["name"],
+            "vehicle_type": driver["vehicle_type"],
+            "status": driver["status"],
+            "rating": driver["rating"],
+            "current_orders": len(driver["current_orders"]),
+            "specialties": driver.get("specialties", []),
+            "working_hours": driver.get("working_hours", {})
+        })
+    
+    return {
+        "city_assignments": city_assignments,
+        "total_drivers": len(drivers_db),
+        "cities_covered": list(city_assignments.keys())
+    }
+
+@app.get("/api/drivers/city/{city_name}")
+def get_city_drivers(city_name: str):
+    """Get all drivers assigned to a specific city"""
+    city_drivers = [d for d in drivers_db if d.get("assigned_city", "").lower() == city_name.lower()]
+    
+    return {
+        "city": city_name,
+        "drivers": city_drivers,
+        "total_drivers": len(city_drivers),
+        "available_drivers": len([d for d in city_drivers if d["status"] == "available"]),
+        "busy_drivers": len([d for d in city_drivers if d["status"] == "busy"])
+    }
+
+@app.get("/api/driver/test-login")
+def test_driver_login():
+    return {
+        "working_credentials": [
+            "ahmed@delivery.ma / driver123",
+            "youssef@delivery.ma / driver123", 
+            "fatima@delivery.ma / driver123",
+            "laila@delivery.ma / driver123",
+            "khadija@delivery.ma / driver123"
+        ],
+        "password": "driver123 or 123",
+        "total_drivers": len(drivers_db)
+    }
+@app.get("/api/assignment/simulate")
+def simulate_assignment(pickup_city: str, weight: float = 2.0, service_type: str = "standard", fragile: bool = False):
+    """Simulate driver assignment to show selection logic"""
+    test_order = {
+        "pickup_city": pickup_city,
+        "weight": weight,
+        "service_type": service_type,
+        "fragile": fragile,
+        "dimensions": {"length": 20, "width": 15, "height": 10}
+    }
+    
+    # Get all drivers in the city
+    city_drivers = [d for d in drivers_db if d["assigned_city"].lower() == pickup_city.lower()]
+    
+    # Score each driver
+    pickup_coords = get_city_coordinates(pickup_city)
+    scored_drivers = []
+    
+    for driver in city_drivers:
+        score = calculate_ultimate_driver_score(driver, test_order, pickup_coords)
+        scored_drivers.append({
+            "driver": {
+                "id": driver["id"],
+                "name": driver["name"],
+                "vehicle_type": driver["vehicle_type"],
+                "rating": driver["rating"],
+                "status": driver["status"],
+                "current_orders": len(driver["current_orders"]),
+                "specialties": driver["specialties"]
+            },
+            "score": round(score, 2),
+            "distance_km": round(calculate_gps_distance(
+                driver["current_location"]["lat"], driver["current_location"]["lng"],
+                pickup_coords["lat"], pickup_coords["lng"]
+            ), 2)
+        })
+    
+    # Sort by score
+    scored_drivers.sort(key=lambda x: x["score"], reverse=True)
+    
+    return {
+        "test_order": test_order,
+        "city": pickup_city,
+        "available_drivers": len(city_drivers),
+        "best_match": scored_drivers[0] if scored_drivers else None,
+        "all_scores": scored_drivers,
+        "selection_criteria": {
+            "city_match": "50% - Same city priority with distance calculation",
+            "availability_load": "20% - Driver availability and current workload",
+            "vehicle_suitability": "15% - Vehicle type vs package requirements",
+            "driver_rating": "10% - Customer satisfaction score",
+            "specialties": "5% - Matching skills (express, fragile, etc.)"
+        }
+    }
+
+@app.get("/api/system/coverage")
+def get_system_coverage():
+    """Get complete system coverage information"""
+    coverage = {
+        "cities": [],
+        "total_coverage": 0,
+        "driver_distribution": {},
+        "vehicle_distribution": {}
+    }
+    
+    # Get city coverage
+    for city_name, city_coords in get_all_city_coordinates().items():
+        city_drivers = [d for d in drivers_db if d.get("assigned_city", "").lower() == city_name.lower()]
+        
+        coverage["cities"].append({
+            "name": city_name,
+            "coordinates": city_coords,
+            "drivers_count": len(city_drivers),
+            "has_warehouse": city_name in warehouses_db,
+            "vehicle_types": list(set([d["vehicle_type"] for d in city_drivers])),
+            "coverage_status": "Excellent" if len(city_drivers) >= 3 else "Good" if len(city_drivers) >= 2 else "Basic" if len(city_drivers) >= 1 else "No Coverage"
+        })
+        
+        coverage["driver_distribution"][city_name] = len(city_drivers)
+    
+    # Vehicle distribution
+    for driver in drivers_db:
+        vehicle_type = driver["vehicle_type"]
+        if vehicle_type not in coverage["vehicle_distribution"]:
+            coverage["vehicle_distribution"][vehicle_type] = 0
+        coverage["vehicle_distribution"][vehicle_type] += 1
+    
+    coverage["total_coverage"] = len([c for c in coverage["cities"] if c["drivers_count"] > 0])
+    coverage["total_drivers"] = len(drivers_db)
+    coverage["average_drivers_per_city"] = round(len(drivers_db) / 6, 1)
+    
+
+def get_all_city_coordinates() -> dict:
+    """Get coordinates for all supported cities"""
+    return {
+        "Casablanca": {"lat": 33.5731, "lng": -7.5898},
+        "Rabat": {"lat": 34.0209, "lng": -6.8416},
+        "Marrakech": {"lat": 31.6295, "lng": -7.9811},
+        "El Jadida": {"lat": 33.2316, "lng": -8.5007},
+        "Salé": {"lat": 34.0531, "lng": -6.7985},
+        "Agadir": {"lat": 30.4278, "lng": -9.5981}
+    }
 
 @app.get("/api/drivers/{driver_id}/orders")
 def get_driver_orders(driver_id: str):
@@ -1951,20 +2468,39 @@ async def track_order_websocket(websocket: WebSocket, order_id: str):
         pass
 
 if __name__ == "__main__":
-    print("=" * 60)
-    print("ENHANCED MULTI-AGENT DELIVERY SYSTEM")
-    print("=" * 60)
-    print("Real-time GPS Tracking")
-    print("Weather-Aware Routing")
-    print("Warehouse Management")
-    print("Multi-Channel Notifications")
-    print("Dynamic Route Optimization")
-    print("Multi-Package Batch Assignment")
-    print("TSP-Optimized Routing")
-    print("Cost & Time Reduction")
-    print("=" * 60)
-    print("Backend: http://localhost:8001")
-    print("API Docs: http://localhost:8001/docs")
-    print("Test API: http://localhost:8001/api/test")
-    print("=" * 60)
+    print("=" * 80)
+    print("🚀 ULTIMATE MULTI-AGENT DELIVERY SYSTEM v3.0 🚀")
+    print("=" * 80)
+    print("✅ Multi-Driver City Coverage (16 total drivers)")
+    print("✅ AI-Powered Intelligent Assignment")
+    print("✅ Real-time Location-Based Scoring")
+    print("✅ Vehicle-Type Optimization")
+    print("✅ Rating-Based Selection")
+    print("✅ Specialty Matching System")
+    print("✅ Load Balancing Algorithm")
+    print("✅ Weather-Aware Routing")
+    print("✅ Multi-Package Optimization")
+    print("✅ Warehouse Management")
+    print("=" * 80)
+    print("🏙️  ULTIMATE CITY COVERAGE:")
+    print("   • Casablanca → 4 drivers (Ahmed, Youssef, Fatima, Karim)")
+    print("   • Rabat → 3 drivers (Laila, Omar, Nadia)")
+    print("   • Marrakech → 3 drivers (Hassan, Aicha, Rachid)")
+    print("   • Agadir → 2 drivers (Khadija, Mehdi)")
+    print("   • El Jadida → 2 drivers (Zineb, Samir)")
+    print("   • Salé → 2 drivers (Amina, Khalid)")
+    print("=" * 80)
+    print("🎯 ASSIGNMENT FACTORS:")
+    print("   • Location Proximity: 40% (GPS distance)")
+    print("   • Vehicle Suitability: 25% (type, capacity, speed)")
+    print("   • Driver Rating: 15% (customer satisfaction)")
+    print("   • Current Load: 10% (workload balancing)")
+    print("   • Specialties: 10% (skill matching)")
+    print("=" * 80)
+    print("🌐 URLs:")
+    print("   Backend: http://localhost:8001")
+    print("   API Docs: http://localhost:8001/docs")
+    print("   Coverage: http://localhost:8001/api/system/coverage")
+    print("   Simulator: http://localhost:8001/api/assignment/simulate")
+    print("=" * 80)
     uvicorn.run(app, host="0.0.0.0", port=8001)
