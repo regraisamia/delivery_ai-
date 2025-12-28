@@ -20,11 +20,15 @@ export default function Login() {
 
       if (response.ok) {
         const data = await response.json()
-        localStorage.setItem('token', data.access_token)
-        localStorage.setItem('user', JSON.stringify(data.user))
-        navigate('/dashboard')
+        if (data.access_token) {
+          localStorage.setItem('token', data.access_token)
+          localStorage.setItem('user', JSON.stringify(data.user || {}))
+          navigate('/dashboard')
+        } else {
+          alert('Login failed: Invalid response')
+        }
       } else {
-        const error = await response.json().catch(() => ({}))
+        const error = await response.json().catch(() => ({ detail: 'Login failed' }))
         alert(error.detail || 'Invalid credentials')
       }
     } catch (error) {

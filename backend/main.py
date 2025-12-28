@@ -7,7 +7,7 @@ import asyncio
 from datetime import datetime, timedelta
 from api.routes.gps_routes import router as gps_router
 from api.routes.driver_management import router as driver_router
-from api.services.smart_assignment import SmartAssignmentService
+from api.services.agent_integration import AgentIntegrationService
 
 app = FastAPI(title="Enhanced Multi-Agent Delivery System")
 
@@ -823,8 +823,22 @@ async def create_order(order: OrderCreate):
     
     orders_db.append(new_order)
     
-    # Smart driver assignment with fallback
-    assignment_service = SmartAssignmentService()
+    # Smart driver assignment with AI agents
+    agent_service = AgentIntegrationService()
+    
+    # Process order with agents first
+    agent_result = await agent_service.process_order_with_agents({
+        'id': order_id,
+        'sender_name': order.sender_name,
+        'receiver_name': order.receiver_name,
+        'sender_address': order.pickup_address,
+        'receiver_address': order.delivery_address,
+        'weight': order.weight,
+        'service_type': order.service_type,
+        'distance': calculate_inter_city_distance(order.pickup_city, order.delivery_city) if is_inter_city else 15
+    })
+    
+    print(f"🤖 Agent processing result: {agent_result['status']} (agents used: {agent_result.get('agents_used', False)})")
     
     # Get available drivers in the pickup city with enhanced city matching
     city_drivers = [d for d in drivers_db if 
@@ -845,12 +859,16 @@ async def create_order(order: OrderCreate):
             )
         city_drivers = sorted(available_drivers, key=lambda d: d.get("_temp_distance", 999))[:3]
     
-    best_driver = await assignment_service.find_best_driver(new_order, city_drivers)
+    best_driver_result = await agent_service.assign_driver_with_agents(new_order, city_drivers)
     
+    best_driver = best_driver_result.get('driver')
     if best_driver:
         new_order["assigned_driver"] = best_driver["id"]
         new_order["status"] = "pending_acceptance"
         new_order["assignment_attempts"] = 1
+        new_order["agent_reasoning"] = best_driver_result.get('agent_reasoning', 'No reasoning provided')
+        new_order["assignment_method"] = best_driver_result.get('method', 'Unknown')
+        print(f"🎯 Agent assignment: {best_driver['name']} - {best_driver_result.get('method')}")
     else:
         # Force assign to city-based driver as fallback
         fallback_driver = None
@@ -1429,8 +1447,37 @@ def simulate_assignment(pickup_city: str, weight: float = 2.0, service_type: str
         }
     }
 
-@app.get("/api/system/coverage")
-def get_system_coverage():
+@app.get("/api/agents/status")
+def get_agent_status():
+    """Get current status of AI agents"""
+    from api.services.agent_integration import AgentIntegrationService
+    agent_service = AgentIntegrationService()
+    return agent_service.get_agent_status()
+
+@app.get("/api/agents/test")
+async def test_agents():
+    """Test agent functionality with sample data"""
+    from api.services.agent_integration import AgentIntegrationService
+    agent_service = AgentIntegrationService()
+    
+    test_order = {
+        'id': 'TEST001',
+        'sender_name': 'Test Sender',
+        'receiver_name': 'Test Receiver', 
+        'sender_address': 'Casablanca Center',
+        'receiver_address': 'Rabat Center',
+        'weight': 2.5,
+        'service_type': 'express',
+        'distance': 87
+    }
+    
+    result = await agent_service.process_order_with_agents(test_order)
+    
+    return {
+        "test_order": test_order,
+        "agent_result": result,
+        "agent_status": agent_service.get_agent_status()
+    }
     """Get complete system coverage information"""
     coverage = {
         "cities": [],

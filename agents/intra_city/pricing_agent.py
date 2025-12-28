@@ -1,6 +1,9 @@
 from crewai import Agent, LLM
 
-llm = LLM(model="ollama/llama3.1", api_base="http://localhost:11434")
+try:
+    llm = LLM(model="ollama/llama3.2", base_url="http://localhost:11434")
+except:
+    llm = None
 
 pricing_agent = Agent(
     role="Pricing Specialist",

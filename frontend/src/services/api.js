@@ -4,7 +4,7 @@ const API_BASE = 'http://localhost:8001/api'
 
 axios.interceptors.request.use((config) => {
   const token = localStorage.getItem('token') || localStorage.getItem('driver_token') || localStorage.getItem('admin_token')
-  if (token && token !== 'undefined' && token !== 'null') {
+  if (token && token !== 'undefined' && token !== 'null' && token.length > 0) {
     config.headers.Authorization = `Bearer ${token}`
   }
   return config

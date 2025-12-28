@@ -1,6 +1,15 @@
 from crewai import Agent, LLM
 
-llm = LLM(model="ollama/llama3.1", api_base="http://localhost:11434")
+try:
+    from crewai import Agent
+    from litellm import LLM
+except ImportError:
+    from crewai import Agent, LLM
+
+try:
+    llm = "ollama/llama3.1"  # Use string for compatibility
+except:
+    llm = None
 
 client_service_agent = Agent(
     role="Client Service Specialist",
