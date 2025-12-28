@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { api } from '../services/api';
 import LiveGPSTracker from '../components/LiveGPSTracker';
-import OptimizedRouteDisplay from '../components/OptimizedRouteDisplay';
+import AdvancedRouteDisplay from '../components/RouteMapDisplay';
 import MultiPackageManager from '../components/MultiPackageManager';
 
 const DriverDashboard = () => {
@@ -281,7 +281,23 @@ const DriverDashboard = () => {
             <div className="flex items-center space-x-4">
               <div>
                 <h1 className="text-2xl font-bold text-gray-900">Welcome, {driver.name}</h1>
-                <p className="text-gray-600">{driver.vehicle_type} • Rating: ⭐ {driver.rating}</p>
+                <div className="flex items-center space-x-4 mt-1">
+                  <p className="text-gray-600">{driver.vehicle_type} • Rating: ⭐ {driver.rating}</p>
+                  {driver.assigned_city && (
+                    <span className="bg-blue-100 text-blue-800 text-sm px-3 py-1 rounded-full font-medium">
+                      📍 {driver.assigned_city}
+                    </span>
+                  )}
+                  {driver.specialties && driver.specialties.length > 0 && (
+                    <div className="flex space-x-1">
+                      {driver.specialties.slice(0, 2).map((specialty, index) => (
+                        <span key={index} className="bg-green-100 text-green-800 text-xs px-2 py-1 rounded-full">
+                          {specialty.replace('_', ' ')}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
               <button
                 onClick={toggleOnlineStatus}
@@ -314,6 +330,11 @@ const DriverDashboard = () => {
               <p className="text-sm text-gray-500">
                 Today: {earnings.today_earnings || 0} MAD
               </p>
+              {driver.working_hours && (
+                <p className="text-xs text-gray-400">
+                  Hours: {driver.working_hours.start} - {driver.working_hours.end}
+                </p>
+              )}
             </div>
           </div>
         </div>
@@ -387,15 +408,48 @@ const DriverDashboard = () => {
           </div>
         </div>
 
-        {/* Real-Time Optimized Route */}
+        {/* Advanced Route Navigation */}
         {orders.length > 0 && (
-          <div className="bg-white rounded-lg shadow mb-6">
+          <div className="bg-white rounded-lg shadow mb-6" data-route-section>
             <div className="p-6 border-b border-gray-200">
-              <h2 className="text-lg font-semibold text-gray-900">📍 Real-Time Optimized Route</h2>
-              <p className="text-sm text-gray-600">Live route with weather and traffic conditions</p>
+              <h2 className="text-lg font-semibold text-gray-900">🗺️ Advanced Route Navigation</h2>
+              <p className="text-sm text-gray-600">Best route selection with turn-by-turn navigation</p>
             </div>
             <div className="p-6">
-              <OptimizedRouteDisplay driverId={driver.id} orders={orders} />
+              <AdvancedRouteDisplay 
+                driverLocation={currentLocation ? {
+                  lat: currentLocation.latitude,
+                  lng: currentLocation.longitude
+                } : {
+                  lat: driver.current_location?.lat || 33.5731,
+                  lng: driver.current_location?.lng || -7.5898
+                }}
+                destinations={orders.map(order => {
+                  const cityCoords = {
+                    'casablanca': { lat: 33.5731, lng: -7.5898 },
+                    'rabat': { lat: 34.0209, lng: -6.8416 },
+                    'marrakech': { lat: 31.6295, lng: -7.9811 },
+                    'el jadida': { lat: 33.2316, lng: -8.5007 },
+                    'salé': { lat: 34.0531, lng: -6.7985 },
+                    'agadir': { lat: 30.4278, lng: -9.5981 }
+                  };
+                  
+                  const city = order.delivery_city?.toLowerCase() || 'casablanca';
+                  const coords = cityCoords[city] || cityCoords['casablanca'];
+                  
+                  return {
+                    id: order.id,
+                    lat: coords.lat + (Math.random() - 0.5) * 0.02,
+                    lng: coords.lng + (Math.random() - 0.5) * 0.02,
+                    address: order.delivery_address,
+                    city: order.delivery_city,
+                    type: 'delivery'
+                  };
+                })}
+                onRouteSelect={(route) => {
+                  console.log('Selected route:', route);
+                }}
+              />
             </div>
           </div>
         )}
@@ -472,11 +526,17 @@ const DriverDashboard = () => {
                         </button>
                       )}
                       <button
-                        onClick={() => window.open(`https://maps.google.com/maps?q=${order.pickup_address || order.delivery_address}`, '_blank')}
-                        className="bg-gray-500 text-white px-4 py-2 rounded-lg text-sm hover:bg-gray-600 flex items-center space-x-1"
+                        onClick={() => {
+                          // Use in-app navigation instead of Google Maps
+                          const routeSection = document.querySelector('[data-route-section]');
+                          if (routeSection) {
+                            routeSection.scrollIntoView({ behavior: 'smooth' });
+                          }
+                        }}
+                        className="bg-blue-500 text-white px-4 py-2 rounded-lg text-sm hover:bg-blue-600 flex items-center space-x-1"
                       >
                         <span>🗺️</span>
-                        <span>Navigate</span>
+                        <span>View Route</span>
                       </button>
                       <button
                         onClick={() => window.open(`tel:${order.status === 'accepted' ? order.sender_phone : order.receiver_phone}`, '_self')}
@@ -517,10 +577,14 @@ const DriverDashboard = () => {
         <div className="mt-6">
           <LiveGPSTracker 
             orderId={orders.find(o => o.status === 'in_transit')?.id}
-            pickupCoords={orders.find(o => o.status === 'accepted') ? 
-              { lat: 33.5731, lng: -7.5898 } : null}
-            deliveryCoords={orders.find(o => o.status === 'in_transit') ? 
-              { lat: 33.5750, lng: -7.5900 } : null}
+            pickupCoords={orders.find(o => o.status === 'accepted') ? {
+              lat: driver.current_location?.lat || 33.5731,
+              lng: driver.current_location?.lng || -7.5898
+            } : null}
+            deliveryCoords={orders.find(o => o.status === 'in_transit') ? {
+              lat: orders.find(o => o.status === 'in_transit')?.current_location?.lat || 33.5750,
+              lng: orders.find(o => o.status === 'in_transit')?.current_location?.lng || -7.5900
+            } : null}
             onLocationUpdate={(location) => {
               setCurrentLocation({
                 latitude: location.lat,

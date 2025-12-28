@@ -3,12 +3,26 @@ import axios from 'axios'
 const API_BASE = 'http://localhost:8001/api'
 
 axios.interceptors.request.use((config) => {
-  const token = localStorage.getItem('token')
-  if (token) {
+  const token = localStorage.getItem('token') || localStorage.getItem('driver_token') || localStorage.getItem('admin_token')
+  if (token && token !== 'undefined' && token !== 'null') {
     config.headers.Authorization = `Bearer ${token}`
   }
   return config
 })
+
+axios.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    console.error('API Error:', error)
+    if (error.response?.status === 401) {
+      localStorage.removeItem('token')
+      localStorage.removeItem('driver_token')
+      localStorage.removeItem('admin_token')
+      window.location.href = '/login'
+    }
+    return Promise.reject(error)
+  }
+)
 
 export const api = {
   // Auth

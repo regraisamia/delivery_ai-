@@ -1,4 +1,4 @@
-// GPS Tracking Service using browser geolocation and OpenRouteService
+// Simple GPS and Routing Service
 class GPSService {
   constructor() {
     this.watchId = null;
@@ -7,7 +7,6 @@ class GPSService {
     this.callbacks = [];
   }
 
-  // Start GPS tracking
   startTracking(callback) {
     if (!navigator.geolocation) {
       throw new Error('Geolocation not supported');
@@ -16,35 +15,37 @@ class GPSService {
     this.callbacks.push(callback);
     this.isTracking = true;
 
-    const options = {
-      enableHighAccuracy: true,
-      timeout: 10000,
-      maximumAge: 30000
-    };
-
     this.watchId = navigator.geolocation.watchPosition(
       (position) => {
         this.currentPosition = {
           lat: position.coords.latitude,
           lng: position.coords.longitude,
-          accuracy: position.coords.accuracy,
+          accuracy: position.coords.accuracy || 10,
           speed: position.coords.speed || 0,
-          heading: position.coords.heading || 0,
           timestamp: new Date().toISOString()
         };
-
-        // Notify all callbacks
         this.callbacks.forEach(cb => cb(this.currentPosition));
       },
       (error) => {
         console.error('GPS Error:', error);
-        this.callbacks.forEach(cb => cb(null, error));
+        // Use fallback location (Casablanca)
+        const fallback = {
+          lat: 33.5731,
+          lng: -7.5898,
+          accuracy: 1000,
+          speed: 0,
+          timestamp: new Date().toISOString()
+        };
+        this.callbacks.forEach(cb => cb(fallback));
       },
-      options
+      {
+        enableHighAccuracy: true,
+        timeout: 5000,
+        maximumAge: 30000
+      }
     );
   }
 
-  // Stop GPS tracking
   stopTracking() {
     if (this.watchId) {
       navigator.geolocation.clearWatch(this.watchId);
@@ -54,11 +55,10 @@ class GPSService {
     this.callbacks = [];
   }
 
-  // Get current position once
   getCurrentPosition() {
-    return new Promise((resolve, reject) => {
+    return new Promise((resolve) => {
       if (!navigator.geolocation) {
-        reject(new Error('Geolocation not supported'));
+        resolve({ lat: 33.5731, lng: -7.5898, accuracy: 1000, speed: 0 });
         return;
       }
 
@@ -67,47 +67,34 @@ class GPSService {
           resolve({
             lat: position.coords.latitude,
             lng: position.coords.longitude,
-            accuracy: position.coords.accuracy,
-            speed: position.coords.speed || 0,
-            heading: position.coords.heading || 0,
-            timestamp: new Date().toISOString()
+            accuracy: position.coords.accuracy || 10,
+            speed: position.coords.speed || 0
           });
         },
-        reject,
-        {
-          enableHighAccuracy: true,
-          timeout: 10000,
-          maximumAge: 60000
-        }
+        () => {
+          resolve({ lat: 33.5731, lng: -7.5898, accuracy: 1000, speed: 0 });
+        },
+        { enableHighAccuracy: true, timeout: 5000 }
       );
     });
   }
 
-  // Calculate distance between two points
   calculateDistance(lat1, lng1, lat2, lng2) {
-    const R = 6371; // Earth's radius in km
-    const dLat = this.toRad(lat2 - lat1);
-    const dLng = this.toRad(lng2 - lng1);
+    const R = 6371;
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLng = (lng2 - lng1) * Math.PI / 180;
     const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
-              Math.cos(this.toRad(lat1)) * Math.cos(this.toRad(lat2)) *
+              Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
               Math.sin(dLng/2) * Math.sin(dLng/2);
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-    return R * c;
+    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
   }
 
-  toRad(deg) {
-    return deg * (Math.PI/180);
-  }
-
-  // Check if within geofence
   isWithinGeofence(targetLat, targetLng, radiusMeters = 100) {
     if (!this.currentPosition) return false;
-    
     const distance = this.calculateDistance(
       this.currentPosition.lat, this.currentPosition.lng,
       targetLat, targetLng
-    ) * 1000; // Convert to meters
-    
+    ) * 1000;
     return distance <= radiusMeters;
   }
 }

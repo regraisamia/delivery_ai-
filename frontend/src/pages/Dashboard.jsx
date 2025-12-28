@@ -1,28 +1,32 @@
-import { useQuery } from 'react-query'
-import { api } from '../services/api'
+import React from 'react'
 import { Package, TrendingUp, Clock, CheckCircle, Loader } from 'lucide-react'
 import { Link } from 'react-router-dom'
 
 export default function Dashboard() {
-  const { data: orders, isLoading, error } = useQuery('orders', 
-    () => api.getOrders().then(res => {
-      console.log('Orders response:', res.data)
-      return res.data
-    }),
-    {
-      onError: (error) => {
-        console.error('Orders fetch error:', error)
-      }
-    }
-  )
+  const [ordersData, setOrdersData] = React.useState([])
+  const [loading, setLoading] = React.useState(true)
   
-  console.log('Dashboard render - orders:', orders, 'loading:', isLoading, 'error:', error)
+  React.useEffect(() => {
+    fetch('http://localhost:8001/api/orders')
+      .then(res => res.json())
+      .then(data => {
+        setOrdersData(Array.isArray(data) ? data : [])
+        setLoading(false)
+      })
+      .catch(err => {
+        console.error('Error:', err)
+        setOrdersData([])
+        setLoading(false)
+      })
+  }, [])
+  
+  console.log('Dashboard render - orders:', ordersData, 'loading:', loading)
 
   const stats = [
-    { label: 'Total Orders', value: orders?.length || 0, icon: Package, color: 'from-blue-500 to-indigo-500' },
-    { label: 'In Transit', value: orders?.filter(o => o.status === 'in_transit').length || 0, icon: TrendingUp, color: 'from-purple-500 to-pink-500' },
-    { label: 'Pending', value: orders?.filter(o => o.status === 'pending').length || 0, icon: Clock, color: 'from-orange-500 to-red-500' },
-    { label: 'Delivered', value: orders?.filter(o => o.status === 'delivered').length || 0, icon: CheckCircle, color: 'from-green-500 to-emerald-500' }
+    { label: 'Total Orders', value: ordersData?.length || 0, icon: Package, color: 'from-blue-500 to-indigo-500' },
+    { label: 'In Transit', value: ordersData?.filter(o => o.status === 'in_transit').length || 0, icon: TrendingUp, color: 'from-purple-500 to-pink-500' },
+    { label: 'Pending', value: ordersData?.filter(o => o.status === 'pending').length || 0, icon: Clock, color: 'from-orange-500 to-red-500' },
+    { label: 'Delivered', value: ordersData?.filter(o => o.status === 'delivered').length || 0, icon: CheckCircle, color: 'from-green-500 to-emerald-500' }
   ]
 
   const statusColors = {
@@ -65,11 +69,11 @@ export default function Dashboard() {
       <div className="card p-6">
         <h2 className="text-2xl font-bold mb-6">Recent Orders</h2>
         
-        {isLoading ? (
+        {loading ? (
           <div className="flex items-center justify-center py-12">
             <Loader className="w-8 h-8 text-blue-600 animate-spin" />
           </div>
-        ) : orders?.length === 0 ? (
+        ) : ordersData?.length === 0 ? (
           <div className="text-center py-12">
             <Package className="w-16 h-16 text-gray-300 mx-auto mb-4" />
             <p className="text-gray-600">No orders yet. Create your first order!</p>
@@ -96,7 +100,7 @@ export default function Dashboard() {
                 </tr>
               </thead>
               <tbody>
-                {orders?.map((order) => (
+                {ordersData?.map((order) => (
                   <tr key={order.id} className="border-b border-gray-100 hover:bg-gray-50 transition-colors">
                     <td className="py-4 px-4">
                       <Link to={`/track?tracking=${order.tracking_number}`} className="font-mono text-blue-600 hover:text-blue-700 font-semibold">
